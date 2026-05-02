@@ -6,6 +6,8 @@ import mdx from '@astrojs/mdx';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
+  site: 'https://smogman.github.io',
+  base: '/AI_Code_best_Practices',
   integrations: [
     starlight({
       title: 'Claude Code Best Practices',
