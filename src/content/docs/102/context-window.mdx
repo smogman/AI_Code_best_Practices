@@ -1,0 +1,88 @@
+---
+title: Understanding the Context Window
+description: Why Claude degrades in long sessions, and the habits that prevent it.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## What the Context Window Is
+
+Claude has a fixed-size "working memory" for each session — the context window. Everything in a session competes for space in it: your messages, Claude's responses, files it's read, commands it ran, and their output.
+
+When the context window fills up, Claude starts losing access to earlier parts of the conversation. This causes visible quality degradation: Claude forgets instructions, repeats mistakes you already corrected, or loses track of what it was doing.
+
+**This is the #1 source of degraded Claude Code sessions.** Almost every complaint about Claude "going in circles" or "ignoring instructions" is a context problem.
+
+## How Context Gets Consumed
+
+Some things eat context faster than you'd expect:
+
+| Action | Relative cost |
+|---|---|
+| Reading a large file | High |
+| Running a command with verbose output | High |
+| Long back-and-forth corrections | Medium-High |
+| A single focused instruction | Low |
+| Your CLAUDE.md | Low (once, at session start) |
+
+The danger zone: searching through many files, running build output, or spending a lot of turns correcting Claude's direction — these fill the window fast.
+
+## The Core Habit: Match Session Scope to Task Scope
+
+**One task per session.** Don't mix "fix the auth bug" with "refactor the payment module" in the same session. Each task gets its own `/clear`.
+
+This isn't a Claude limitation to work around — it's how the tool works best. Focused sessions consistently outperform kitchen-sink sessions.
+
+## Managing Context: Three Tools
+
+### `/clear`
+Hard reset. Wipes the conversation. Claude forgets everything except what's in `CLAUDE.md`.
+
+**Use when:** Starting a new task, or when a session has gone off the rails.
+
+### `/compact`
+Soft reset. Summarizes the conversation into a compact form, preserving the gist but freeing space.
+
+**Use when:** You're mid-task and need to continue but the session is getting long.
+
+### `/status`
+Shows how full the context window is. Check this periodically — don't wait until you notice degradation.
+
+## Signs Your Context Is Exhausted
+
+- Claude ignores explicit instructions it followed earlier in the session
+- Claude re-reads files it already read
+- Claude loops back to a solution you already rejected
+- Responses get shorter and less specific
+- Claude says "as I mentioned" but gets the earlier point wrong
+
+Any of these: use `/clear` and start fresh.
+
+## Subagents for Context Isolation (Preview)
+
+In 202, you'll learn about subagents — spawning a fresh Claude session for a subtask without polluting your main session's context. This is the power-user pattern for large tasks.
+
+For now, the discipline of one-task-per-session will get you most of the way there.
+
+---
+
+<Exercise title="Observe context degradation in action" time="20 min">
+
+**Task:** Deliberately fill the context window and observe what happens — then recover with `/clear`.
+
+**Steps:**
+1. Start a session on a medium-sized project
+2. Ask Claude to read and explain 5 different files, one at a time
+3. Run `/status` after each file — watch the context fill
+4. Give Claude an instruction: *"Remember: always use const, not let"*
+5. Continue reading more files and running a few commands
+6. After the window is well-filled, ask Claude to write a small function — check if it remembered your instruction
+7. Run `/clear` and give the same instruction again — observe the difference in compliance
+
+**Success Criteria:**
+- [ ] You watched `/status` show increasing context usage
+- [ ] You observed at least one case where Claude forgot or ignored an earlier instruction
+- [ ] After `/clear`, Claude followed the instruction correctly
+- [ ] You now have an intuition for when to `/clear` vs. `/compact`
+
+</Exercise>

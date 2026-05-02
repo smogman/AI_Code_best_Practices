@@ -1,0 +1,99 @@
+---
+title: Project Setup Checklist
+description: Everything to do once when setting up a project for Claude Code.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+Do this once per project. A well-set-up project means every session starts faster and Claude makes fewer mistakes.
+
+## The Checklist
+
+### 1. Verify your `.gitignore` is solid
+
+Claude Code can read your files. Make sure secrets and generated files are excluded before Claude scans your project.
+
+Check these are ignored:
+- `.env` and `.env.local`
+- `node_modules/`
+- Build output (`dist/`, `.next/`, etc.)
+- Any files containing API keys or credentials
+
+### 2. Create `.claude/settings.json`
+
+Pre-approve the commands you'll use every session so Claude doesn't prompt you for them.
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test)",
+      "Bash(npm run lint)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run build)"
+    ]
+  }
+}
+```
+
+Commit this file — your whole team benefits from it.
+
+### 3. Write your `CLAUDE.md`
+
+See the [CLAUDE.md Basics](/AI_Code_best_Practices/102/claude-md-basics/) lesson. At minimum include your stack, key conventions, and the commands from step 2.
+
+### 4. Make sure your test suite runs cleanly
+
+Before using Claude Code seriously on a project, confirm `npm test` (or your equivalent) passes from a clean state. Claude will run your tests to verify its own work — if tests are already broken, it can't tell whether it caused new failures.
+
+### 5. Check that your linter is configured
+
+A linter gives Claude immediate feedback on code style. If you don't have one, now is a good time to add ESLint/Prettier or whatever fits your stack.
+
+### 6. Commit the setup files
+
+```bash
+git add .claude/settings.json CLAUDE.md
+git commit -m "Add Claude Code project configuration"
+```
+
+Your teammates can now use Claude Code with the same settings.
+
+## Optional but Recommended
+
+**Add a `.claude/` entry to `.gitignore` exceptions** — by default `.claude/` might be gitignored on some setups. Make sure `settings.json` is tracked.
+
+**Create a scratch branch** — for your first few sessions on a new project, work on a branch. Claude's changes are easy to review and discard with `git diff` and `git checkout`.
+
+**Note your architecture in CLAUDE.md** — a two-sentence description of how the app is structured saves Claude significant exploration time at the start of each session.
+
+## Quick Verification
+
+After setup, start a session and run this as your first prompt:
+
+```
+What do you know about this project? Summarize the stack, main commands, and any constraints from CLAUDE.md.
+```
+
+Claude's answer tells you immediately whether it absorbed your configuration correctly.
+
+---
+
+<Exercise title="Run the full setup checklist on a real project" time="30 min">
+
+**Task:** Go through every step of this checklist on a project you own.
+
+**Steps:**
+1. Audit your `.gitignore` for secrets
+2. Create `.claude/settings.json` with at least 3 pre-approved commands
+3. Write or refine your `CLAUDE.md`
+4. Run your tests — confirm they pass before involving Claude
+5. Start a session and run the verification prompt above
+
+**Success Criteria:**
+- [ ] Claude correctly summarizes your stack from `CLAUDE.md`
+- [ ] Claude correctly lists your test and lint commands
+- [ ] Running tests and linting doesn't trigger permission prompts
+- [ ] No secrets are readable in the project directory
+
+</Exercise>

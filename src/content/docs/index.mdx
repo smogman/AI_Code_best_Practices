@@ -1,44 +1,36 @@
 ---
 title: Claude Code Best Practices
-description: Research-backed guide to getting the most out of Claude Code - synthesized from 26 sources
+description: A research-backed curriculum for getting the most out of Claude Code — from first install to advanced multi-agent workflows.
 template: splash
 hero:
-  tagline: Research-backed practices from 26 sources. Official docs, the Claude Code creator, industry leaders, and community experience — organized, rated, and ready to use.
+  tagline: A structured curriculum synthesized from 26 sources. Each course builds on the last, with exercises and success criteria so you know when you're ready to move on.
   actions:
-    - text: Start with Consensus Practices
-      link: research/consensus-practices/
+    - text: Start at 101
+      link: 101/
       icon: right-arrow
-    - text: View All Sources
-      link: research/sources/
+    - text: View Reference Docs
+      link: research/consensus-practices/
       variant: minimal
 ---
 
 import PanelGrid from '../../components/PanelGrid';
 
-## What's Inside
+## Choose Your Starting Point
 
 <PanelGrid client:load />
 
-## Key Findings at a Glance
+## What's in Each Level
 
-### What Nearly Everyone Agrees On
+| Level | Focus | You already know... |
+|---|---|---|
+| 101 | Installation, first session, commands, permissions | Nothing — start here |
+| 102 | CLAUDE.md, project setup, context window | How to run a basic session |
+| 201 | Context management, Plan Mode, verification loops | Claude is set up on a real project |
+| 202 | Hooks, Skills, MCP, multi-agent basics | Verification loops are in place |
+| 300 | Multi-agent architectures, advanced patterns, cost | Daily active use on real projects |
 
-1. **Context window is your #1 resource** — Performance degrades as it fills. Use `/clear`, subagents, and fresh sessions aggressively.
-2. **Give Claude verification loops** — Tests, linters, screenshots. The single highest-leverage practice (2-3x quality improvement).
-3. **Plan before coding** — Use Plan Mode for non-trivial tasks. Separate exploration from execution.
-4. **Keep CLAUDE.md concise** — Under 300 lines. The creator uses ~100 and outperforms 800-line configs.
-5. **Test-driven development** — Have AI write tests first, then minimum code to pass them.
+## How This Curriculum Was Built
 
-### What People Debate
+Every lesson is grounded in research from 26 sources: official Anthropic documentation, direct insights from the Claude Code creator, and community-sourced experience from practitioners running Claude Code at scale.
 
-- **Autonomy level**: Full bypass mode vs. human-in-the-loop for every change
-- **Multi-agent value**: 10-15 parallel sessions vs. focused single-agent work
-- **CLAUDE.md generation**: Auto-generate with `/init` vs. always hand-craft
-- **Model selection**: Opus for everything vs. Opus planning + Sonnet implementation
-
-### Common Pitfalls
-
-- Kitchen sink sessions mixing unrelated tasks
-- Repeated corrections polluting context
-- Claude making silent architectural decisions
-- Over-specified CLAUDE.md causing instruction-following collapse
+The [Reference section](/AI_Code_best_Practices/research/consensus-practices/) contains the raw research behind the curriculum — useful for going deeper on any topic.

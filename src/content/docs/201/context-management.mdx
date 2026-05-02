@@ -1,0 +1,89 @@
+---
+title: Context Management
+description: Advanced strategies for keeping Claude sessions clean, focused, and high-quality.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## The Core Problem
+
+Context window degradation is subtle. Claude doesn't announce when it's running low — it just starts making mistakes that look like capability failures. Understanding the *types* of context pollution helps you prevent them.
+
+## Types of Context Pollution
+
+### Correction Accumulation
+
+Every time you correct Claude, the correction and the wrong answer both stay in context. After 5-6 corrections, a significant chunk of your context is spent on wrong paths.
+
+**Fix:** Use `/clear` before starting a new subtask rather than endlessly correcting. If you've corrected Claude more than 3 times on the same issue, something is wrong — either your instructions or the session needs a reset.
+
+### Verbose Command Output
+
+`npm install`, build output, or test runs with lots of logging can dump thousands of tokens into context at once.
+
+**Fix:** Pipe verbose output to a file when you just need Claude to know whether it succeeded:
+```bash
+npm run build 2>&1 | tail -20
+```
+
+Or tell Claude to check only the exit code:
+```
+Run the tests and tell me the pass/fail count. Don't show me all the output.
+```
+
+### Kitchen Sink Sessions
+
+Mixing unrelated tasks in one session is the most common source of degradation. Each task brings in its own files, context, and corrections — they all accumulate.
+
+**Fix:** One task per session. When a task is complete, start fresh for the next one.
+
+### File Accumulation
+
+If Claude reads 15 files to understand the codebase, those 15 files live in context for the rest of the session — even if you only need 2 of them for the actual task.
+
+**Fix:** Be specific about what Claude should read. "Look at `src/auth/login.ts` and `src/auth/session.ts`" is better than "explore the auth module."
+
+## Advanced Session Strategy
+
+### The "Fresh Session Per Feature" Pattern
+
+Many experienced users start a new session for every feature or bug fix. This sounds excessive, but `CLAUDE.md` gives Claude instant project context — the cost of a fresh session is minimal.
+
+1. Start session
+2. Claude reads `CLAUDE.md` (instant context)
+3. Give your specific task
+4. Complete it
+5. Commit the changes
+6. Start new session for next task
+
+This keeps every session small, focused, and high-quality.
+
+### Subagent Context Isolation (Preview)
+
+For large tasks with multiple phases (research, planning, implementation, testing), you can use subagents — separate Claude sessions spawned for subtasks that report back to the main session. This completely eliminates cross-task context pollution. Covered in 202.
+
+### Strategic `/compact` Use
+
+`/compact` is most valuable in the middle of implementation, when you've explored a problem and are now deep in writing code. The exploration phase is done — compact it away and continue with a lighter context.
+
+Don't use `/compact` as a substitute for `/clear`. If you've changed direction or completed a task, `/clear` is better.
+
+---
+
+<Exercise title="Run a multi-task session both ways and compare" time="30 min">
+
+**Task:** Compare the quality of kitchen-sink sessions vs. focused sessions on the same work.
+
+**Steps:**
+1. Pick two similar small tasks (e.g., fix two separate bugs, or add two separate functions)
+2. **Round 1:** Do both tasks in one session without clearing between them
+3. **Round 2:** Do each task in its own fresh session
+4. Compare the quality of Claude's output and how often it needed correction
+
+**Success Criteria:**
+- [ ] You completed both rounds
+- [ ] Round 2 required fewer corrections to get the right result
+- [ ] You noticed a difference in how precisely Claude followed instructions
+- [ ] You've internalized why one-task-per-session is worth the friction
+
+</Exercise>

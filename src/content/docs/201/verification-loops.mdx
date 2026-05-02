@@ -1,0 +1,123 @@
+---
+title: Verification Loops
+description: The single highest-leverage practice — giving Claude ways to check its own work.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## The Core Insight
+
+Claude produces significantly better code when it can verify its own work. Not because it tries harder, but because verification surfaces bugs before they reach you — and Claude can fix them immediately, before the context moves on.
+
+This is the practice with the broadest consensus across the community: **give Claude a feedback loop**. Tests, linters, type checks, screenshots — anything that produces pass/fail signals Claude can act on.
+
+Community reports consistently show 2-3x quality improvement from this single practice.
+
+## What Makes a Good Verification Loop
+
+A verification loop has three properties:
+
+1. **Fast** — Claude gets feedback quickly. A 30-second test run is fine. A 10-minute build is too slow.
+2. **Unambiguous** — Pass or fail. Not "it seems mostly right."
+3. **Automatic** — Claude can run it without asking you. Pre-approve the command in `.claude/settings.json`.
+
+## Types of Verification
+
+### Tests (Best)
+
+Tell Claude to write the tests first, then implement until the tests pass.
+
+```
+Write tests for the new `calculateDiscount()` function first, 
+then implement the function to make them pass.
+```
+
+This is test-driven development with AI. The tests define what correct looks like — Claude can iterate without you.
+
+If you have existing tests, tell Claude to run them after every change:
+
+```
+After each edit, run `npm test`. Keep going until all tests pass.
+```
+
+### Type Checking
+
+TypeScript is a fast, free verification loop for type correctness:
+
+```json
+// .claude/settings.json
+{
+  "permissions": {
+    "allow": ["Bash(npm run typecheck)"]
+  }
+}
+```
+
+```
+After making changes, run `npm run typecheck` and fix any errors 
+before telling me you're done.
+```
+
+### Linting
+
+Linters catch style and correctness issues fast:
+
+```
+Run `npm run lint` after your changes and fix any warnings.
+```
+
+### Screenshots (UI Work)
+
+For frontend changes, a screenshot gives Claude visual feedback:
+
+```
+After making the changes, take a screenshot of the component 
+and tell me if it looks right before I review.
+```
+
+Playwright MCP (covered in 202) automates this.
+
+## The Verification-First Pattern
+
+For any non-trivial task, structure your prompt around verification:
+
+```
+1. Write tests for [feature] first
+2. Implement until all tests pass
+3. Run the linter — fix any warnings
+4. Run typecheck — fix any errors
+5. Tell me when all three are green
+```
+
+Claude should not report "done" until the verification gates pass.
+
+## What Happens Without Verification
+
+Without a feedback loop, Claude makes a change and reports success based on reasoning alone. It can't tell whether the change introduced a bug — it can only reason about whether it should have. These are different.
+
+The failure mode: Claude writes plausible-looking code, says it's done, you approve it, and two sessions later a bug surfaces that would have been caught by a test run.
+
+---
+
+<Exercise title="Set up a full verification loop for a project" time="25 min">
+
+**Task:** Configure a project so Claude automatically runs tests, type checks, and lint after changes.
+
+**Steps:**
+1. Add `npm test`, `npm run typecheck`, and `npm run lint` to your `.claude/settings.json` allow list
+2. Add this to your `CLAUDE.md`:
+   ```
+   ## Verification
+   After every change, run: npm test && npm run typecheck && npm run lint
+   Report done only when all three pass.
+   ```
+3. Ask Claude to add a new function with a deliberate error in it
+4. Observe Claude catching and fixing the error without you intervening
+
+**Success Criteria:**
+- [ ] All three commands are in the permissions allow list
+- [ ] Claude ran verification without being asked
+- [ ] Claude caught at least one error and fixed it before reporting done
+- [ ] You didn't have to manually run tests after Claude finished
+
+</Exercise>

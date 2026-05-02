@@ -1,0 +1,101 @@
+---
+title: Essential Slash Commands
+description: The commands you'll use in every Claude Code session.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+Slash commands control the Claude Code session itself — they're not prompts, they're instructions to the tool. Type `/help` at any point to see all available commands.
+
+## The Commands You'll Use Daily
+
+### `/clear`
+Clears the conversation history and starts fresh **without ending the session**.
+
+Use this when:
+- The conversation has gotten long and Claude is starting to lose track
+- You finished one task and are starting an unrelated one
+- Claude is stuck in a loop or giving degraded responses
+
+This is one of the most important habits to build. A fresh context gives you Claude's best work.
+
+```
+> /clear
+```
+
+### `/compact`
+Summarizes the conversation history to free up context space, **without losing the thread**.
+
+Use this when:
+- You're mid-task and need to continue, but the session is getting long
+- You want to preserve some context but reduce token usage
+
+`/clear` is a hard reset. `/compact` is a soft one — use `/compact` when you still need history, `/clear` when you don't.
+
+### `/exit`
+Ends the session.
+
+### `/help`
+Shows all available commands and a quick reference. Run this when you're stuck.
+
+## Commands for Understanding What's Happening
+
+### `/status`
+Shows current session info — model in use, tokens used, context remaining.
+
+Check this periodically on long sessions. When context is running low, it's time for `/clear` or `/compact`.
+
+### `/cost`
+Shows the token cost of the current session. Useful for developing an intuition about what's expensive.
+
+## Commands for Control
+
+### `/permissions`
+Shows what Claude is currently allowed to do and lets you adjust. If Claude keeps asking for permission on something routine, you can allow it here.
+
+### `/model`
+Switch between Claude models mid-session. You might start with Opus for complex planning and switch to Sonnet for implementation.
+
+## Commands for Project Setup
+
+### `/init`
+Generates a `CLAUDE.md` file for your project by scanning it. This is the starting point for 102 — don't run it until you understand what `CLAUDE.md` does.
+
+### `/review`
+Asks Claude to do a focused code review of recent changes.
+
+## Quick Reference
+
+| Command | What it does |
+|---|---|
+| `/clear` | Reset conversation, keep session |
+| `/compact` | Summarize history, keep thread |
+| `/exit` | End session |
+| `/help` | Show all commands |
+| `/status` | Token usage and context remaining |
+| `/cost` | Cost of current session |
+| `/permissions` | View and adjust permissions |
+| `/model` | Switch models |
+| `/init` | Generate CLAUDE.md |
+| `/review` | Code review recent changes |
+
+---
+
+<Exercise title="Practice the three most important commands" time="10 min">
+
+**Task:** Get comfortable with `/clear`, `/compact`, and `/status` in a real session.
+
+**Steps:**
+1. Start a session and ask Claude to explain a file in your project
+2. Run `/status` — note how many tokens are used
+3. Ask Claude a few more questions about the codebase
+4. Run `/compact` — observe how it summarizes
+5. Run `/status` again — compare token usage
+6. Start a new, unrelated task and run `/clear` first
+
+**Success Criteria:**
+- [ ] You ran `/status` before and after `/compact` and saw the token count drop
+- [ ] After `/clear`, Claude no longer references anything from before the clear
+- [ ] You can do this from memory without looking it up
+
+</Exercise>

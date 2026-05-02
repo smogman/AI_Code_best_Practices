@@ -1,0 +1,131 @@
+---
+title: Advanced Patterns
+description: Power-user techniques from practitioners running Claude Code at scale.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## Git Workflow Discipline
+
+The single most important practice for agentic work: **commit before every Claude session, and commit after.**
+
+```bash
+# Before session
+git stash  # or commit WIP
+
+# Session runs, Claude makes changes
+
+# After session
+git diff    # review everything
+git add -p  # stage selectively
+git commit  # commit with intent
+```
+
+Why this matters: Claude makes changes across multiple files. Without commits as checkpoints, a bad session is hard to recover from. With commits, `git reset --hard HEAD~1` undoes it cleanly.
+
+For long agentic tasks, ask Claude to commit at each logical milestone:
+
+```
+After completing each phase, make a git commit with a clear message 
+before moving to the next phase.
+```
+
+## Prompt Caching
+
+Claude caches prompt content that stays constant across requests. For large `CLAUDE.md` files or system prompts, this can significantly reduce token costs on long sessions or repeated tasks.
+
+Caching activates automatically for content that stays the same across API calls. In Claude Code usage, your `CLAUDE.md` benefits from this — it's read once and cached for the session.
+
+For programmatic use (Agent SDK / API), structure your prompts so stable content (instructions, context) comes first and variable content (the current task) comes last.
+
+## Auto Mode (Headless Operation)
+
+For fully automated pipelines — CI/CD, scheduled tasks, batch processing — Claude Code can run without interactive approval:
+
+```bash
+claude --dangerously-skip-permissions -p "Run the test suite and fix any failing tests" --output-format json
+```
+
+Use this only in:
+- Sandboxed CI environments
+- Throwaway containers
+- Pre-approved automated tasks where you've verified the scope
+
+Not for interactive development. The permission model exists for good reason.
+
+## The "Scratch Branch" Practice
+
+For exploratory or high-risk work, always work on a branch:
+
+```bash
+git checkout -b claude/feature-exploration
+```
+
+If the session goes well, squash-merge to main. If it goes badly, delete the branch.
+
+Many teams use a naming convention for Claude-driven branches to make them obvious in git history.
+
+## Parallel Session Discipline
+
+Running 10-15 parallel agents is a real pattern — but it requires careful orchestration to not step on itself. Rules for parallel work:
+
+1. **No shared files in parallel.** Each agent owns its files exclusively during its run.
+2. **Each agent has a complete, self-contained task.** No dependencies between parallel agents.
+3. **All agents report structured output.** JSON or structured markdown. Makes synthesis fast.
+4. **Merge sequentially.** Even if agents ran in parallel, review and merge one at a time.
+
+## Model Selection Strategy
+
+Different models have different strengths. Experienced users use model switching deliberately:
+
+| Task | Recommended model |
+|---|---|
+| Architecture planning, complex reasoning | Opus |
+| Implementation, standard coding | Sonnet |
+| Simple edits, boilerplate, quick fixes | Haiku |
+| Code review, analysis | Opus or Sonnet |
+
+Use `/model` to switch mid-session. Many practitioners plan with Opus, then switch to Sonnet for implementation to reduce cost.
+
+## The "Green Tests Before Handing Off" Rule
+
+In any multi-agent pipeline, each agent must leave the codebase with passing tests before handing off to the next agent. This ensures:
+
+- The next agent has a clean baseline
+- Failures are attributable to specific agents
+- The pipeline can be safely interrupted and resumed
+
+If an agent can't get tests green, it should report failure rather than hand off a broken state.
+
+## Reading Claude's Reasoning
+
+For complex decisions, ask Claude to reason explicitly before acting:
+
+```
+Before making any changes, explain your understanding of the problem 
+and your proposed approach. Wait for my approval.
+```
+
+This surfaces hidden assumptions and wrong-direction choices before they become code. It also produces a paper trail of Claude's reasoning you can refer back to.
+
+---
+
+<Exercise title="Build a git-disciplined agentic workflow" time="30 min">
+
+**Task:** Set up a workflow with git commits at each stage for a multi-step task.
+
+**Steps:**
+1. Start on a fresh branch: `git checkout -b claude/exercise`
+2. Give Claude a 3-phase task (e.g., refactor module → add tests → update docs)
+3. Instruct Claude to commit after each phase with a descriptive message
+4. After the session, review: `git log --oneline` — you should see 3 clear commits
+5. Practice undoing the last phase: `git reset --hard HEAD~1`
+
+**Success Criteria:**
+- [ ] Claude made a commit after each phase (3 commits total)
+- [ ] Each commit message is meaningful and describes what changed
+- [ ] You successfully rolled back one phase using git
+- [ ] The rollback left the codebase in a clean, working state
+- [ ] You understand why this matters for long agentic tasks
+
+</Exercise>

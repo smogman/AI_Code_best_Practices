@@ -1,0 +1,80 @@
+---
+title: What is Claude Code & Installation
+description: Understand what Claude Code is, how it works, and get it installed.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## What is Claude Code?
+
+Claude Code is a command-line AI coding assistant made by Anthropic. You run it in your terminal, inside your project directory, and it can read your files, write code, run commands, and have a conversation with you about your codebase.
+
+The key difference from a chat interface: Claude Code operates *in your environment*. It can see your actual files, run your actual tests, and make real changes. You're not copy-pasting code back and forth — Claude is working directly in your repo.
+
+## How It Works
+
+When you start a session, Claude Code:
+
+1. Reads your project structure (and your `CLAUDE.md` if you have one)
+2. Waits for your instruction
+3. Takes actions — reading files, writing code, running commands — and asks your permission before anything destructive
+4. Shows you what it did and waits for feedback
+
+The conversation is stateful within a session. Claude remembers what it read and did earlier in the same session.
+
+## Installation
+
+Claude Code requires Node.js 18 or higher.
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+Then authenticate:
+
+```bash
+claude
+```
+
+The first run will open a browser to authenticate with your Anthropic account. You need an active Claude subscription (Pro or higher) or API access.
+
+## Verify It's Working
+
+```bash
+claude --version
+```
+
+Then navigate to any project directory and run:
+
+```bash
+claude
+```
+
+You should see the Claude Code prompt. Type `hello` to confirm it responds.
+
+## Key Concepts Before You Start
+
+**Sessions are temporary.** Claude's memory resets when you start a new session. What it knows about your project only persists through your `CLAUDE.md` file (covered in 102).
+
+**Context window is finite.** Claude can only hold so much in memory at once. Long sessions with many files degrade in quality. You'll learn to manage this in 201.
+
+**It asks before acting.** By default, Claude will ask permission before running bash commands or making file edits. You can adjust this.
+
+---
+
+<Exercise title="Get Claude Code installed and say hello" time="10 min">
+
+**Task:** Install Claude Code and have your first conversation.
+
+**Steps:**
+1. Run `npm install -g @anthropic-ai/claude-code`
+2. Navigate to any project folder you have locally
+3. Run `claude` and authenticate
+4. Ask Claude: *"What files are in this project and what does it do?"*
+
+**Success Criteria:**
+- [ ] `claude --version` returns a version number
+- [ ] Claude reads your project and gives you an accurate description of what it found
+- [ ] You can type a message and get a response
+
+</Exercise>

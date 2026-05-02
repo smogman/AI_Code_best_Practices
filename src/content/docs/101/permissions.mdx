@@ -1,0 +1,92 @@
+---
+title: Understanding Permissions
+description: What Claude can do, what it asks about, and how to configure it.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## The Permission Model
+
+Claude Code separates actions into two buckets:
+
+**Always allowed (no prompt):**
+- Reading files
+- Searching your codebase
+- Explaining code
+- Suggesting changes (before applying)
+
+**Requires your approval:**
+- Writing or editing files
+- Running bash commands
+- Deleting files
+- Network requests
+
+When Claude wants to do something in the second bucket, it shows you what it's about to do and waits for you to approve or deny.
+
+## Why This Matters
+
+Claude is working directly in your environment. A misunderstood instruction could overwrite something you didn't intend. The permission prompts are a safety net — read them before approving.
+
+The most important habit: **read the diff before approving edits.** Claude shows you exactly what it's about to change. A 5-second review before every edit saves significant pain.
+
+## Adjusting Permissions
+
+### Allowing specific commands
+If Claude keeps asking permission for something routine (like running your test suite), you can allow it:
+
+```
+> /permissions
+```
+
+Or add it to your `.claude/settings.json`:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test)",
+      "Bash(npm run lint)"
+    ]
+  }
+}
+```
+
+### Bypass mode (use with caution)
+You can run Claude with `--dangerously-skip-permissions` to skip all prompts. Only do this in throwaway environments or when you're very confident in what you're asking.
+
+## Permission Levels
+
+Permissions can be set at three levels:
+
+1. **User-level** (`~/.claude/settings.json`) — applies to all your projects
+2. **Project-level** (`.claude/settings.json` in your repo) — applies to one project, can be shared with your team
+3. **Session-level** — set via `/permissions` for the current session only
+
+Project-level permissions in `.claude/settings.json` are the most useful — they let you say "this project always runs `npm test` without asking."
+
+## What Claude Won't Do Regardless of Permissions
+
+Claude Code has hard limits that no permission setting overrides:
+- Won't exfiltrate your code to external services
+- Won't make changes outside your project directory without explicit instruction
+- Won't act on instructions injected via files it reads (prompt injection protection)
+
+---
+
+<Exercise title="Set up a permission allowlist for your project" time="10 min">
+
+**Task:** Create a `.claude/settings.json` that pre-approves the commands you use most often on a real project.
+
+**Steps:**
+1. Identify 2-3 commands you run constantly (tests, linter, build)
+2. Create `.claude/settings.json` in your project root
+3. Add those commands to the `allow` list
+4. Start a session and ask Claude to run one of those commands — confirm it runs without a prompt
+
+**Success Criteria:**
+- [ ] `.claude/settings.json` exists with at least two allowed commands
+- [ ] Claude runs those commands without a permission prompt
+- [ ] Claude still asks permission for commands NOT in the allowlist
+- [ ] You understand the difference between user-level and project-level settings
+
+</Exercise>

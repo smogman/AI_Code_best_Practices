@@ -1,0 +1,168 @@
+---
+title: Hooks
+description: Shell commands that run automatically before and after Claude's actions.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## What Hooks Are
+
+Hooks are shell commands configured to run automatically at specific points in Claude's workflow. They're the mechanism for "always run the linter after every file edit" — without having to ask Claude to do it.
+
+They live in `.claude/settings.json`.
+
+## Hook Events
+
+| Event | When it fires |
+|---|---|
+| `PreToolUse` | Before Claude uses any tool (read, edit, bash, etc.) |
+| `PostToolUse` | After Claude uses any tool |
+| `Stop` | When Claude finishes a response |
+| `Notification` | When Claude sends a notification |
+
+## Hook Structure
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm run lint --fix"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+This runs `npm run lint --fix` every time Claude edits a file.
+
+## The Matcher
+
+The `matcher` field filters which tools trigger the hook. Common values:
+
+- `"Edit"` — fires on file edits
+- `"Bash"` — fires on bash commands
+- `"Read"` — fires on file reads
+- `""` — fires on everything (no filter)
+
+You can also match on specific patterns using regex.
+
+## Practical Hook Examples
+
+### Auto-lint on edit
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [{ "type": "command", "command": "npm run lint --fix" }]
+      }
+    ]
+  }
+}
+```
+
+### Security check before writing sensitive files
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [{
+          "type": "command",
+          "command": "echo 'Checking for secrets...' && grep -rn 'password\\|secret\\|api_key' $CLAUDE_TOOL_INPUT_PATH 2>/dev/null || true"
+        }]
+      }
+    ]
+  }
+}
+```
+
+### Log all bash commands Claude runs
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{
+          "type": "command",
+          "command": "echo \"$(date): $CLAUDE_TOOL_INPUT_COMMAND\" >> ~/.claude/audit.log"
+        }]
+      }
+    ]
+  }
+}
+```
+
+### Run tests after every edit
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [{ "type": "command", "command": "npm test --silent 2>&1 | tail -5" }]
+      }
+    ]
+  }
+}
+```
+
+## Hook Exit Codes
+
+If a `PreToolUse` hook exits with a non-zero code, Claude **blocks the action**. This is how you enforce hard rules:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [{
+          "type": "command",
+          "command": "if echo '$CLAUDE_TOOL_INPUT_PATH' | grep -q 'src/generated/'; then exit 1; fi"
+        }]
+      }
+    ]
+  }
+}
+```
+
+This prevents Claude from editing files in `src/generated/` — period.
+
+## Hook Environment Variables
+
+Hooks get context about what Claude is doing via environment variables:
+
+- `$CLAUDE_TOOL_NAME` — the tool being used (Edit, Bash, etc.)
+- `$CLAUDE_TOOL_INPUT_PATH` — for Edit/Read, the file path
+- `$CLAUDE_TOOL_INPUT_COMMAND` — for Bash, the command being run
+
+---
+
+<Exercise title="Add a post-edit lint hook to your project" time="20 min">
+
+**Task:** Configure a hook that automatically runs your linter after every file Claude edits.
+
+**Steps:**
+1. Open (or create) `.claude/settings.json`
+2. Add a `PostToolUse` hook on `Edit` that runs your linter
+3. Start a session and ask Claude to make a small edit with a deliberate style violation
+4. Observe the hook firing and the linter catching it automatically
+
+**Success Criteria:**
+- [ ] The hook appears in `.claude/settings.json` with correct JSON structure
+- [ ] When Claude edits a file, the linter runs automatically (you can see it in the output)
+- [ ] A lint error in Claude's edit gets caught without you manually running the linter
+- [ ] You understand the difference between `PreToolUse` (block) and `PostToolUse` (notify)
+
+</Exercise>

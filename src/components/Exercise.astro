@@ -1,0 +1,73 @@
+---
+interface Props {
+  title: string;
+  time?: string;
+}
+const { title, time } = Astro.props;
+---
+
+<div class="exercise-block">
+  <div class="exercise-header">
+    <span class="exercise-tag">Exercise</span>
+    {time && <span class="exercise-time">{time}</span>}
+  </div>
+  <h4 class="exercise-title">{title}</h4>
+  <div class="exercise-body">
+    <slot />
+  </div>
+</div>
+
+<style>
+  .exercise-block {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    border: 1px solid rgba(251, 191, 36, 0.25);
+    border-left: 3px solid #fbbf24;
+    border-radius: 8px;
+    background: rgba(251, 191, 36, 0.04);
+  }
+
+  .exercise-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .exercise-tag {
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.15);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    padding: 2px 8px;
+    border-radius: 9999px;
+  }
+
+  .exercise-time {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .exercise-title {
+    margin: 0 0 1rem !important;
+    font-size: 1rem !important;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .exercise-body :global(ul) {
+    margin-top: 0.5rem;
+  }
+
+  .exercise-body :global(li input[type="checkbox"]) {
+    margin-right: 0.5rem;
+    accent-color: #fbbf24;
+  }
+
+  .exercise-body :global(strong) {
+    color: rgba(255, 255, 255, 0.8);
+  }
+</style>

@@ -1,0 +1,112 @@
+---
+title: Plan Mode
+description: How to make Claude think before it acts — and why this matters for non-trivial tasks.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## What Plan Mode Is
+
+Plan Mode is a Claude Code feature that separates planning from execution. When you activate it, Claude explores, reads files, and reasons about your task — but makes zero changes. It produces a plan you can review and approve before any code is written.
+
+Activate it with:
+```
+> /plan
+```
+
+Or by asking Claude to plan before doing anything:
+```
+Before you write any code, outline your approach.
+```
+
+## Why This Matters
+
+Without planning, Claude jumps into implementation based on its first read of the problem. For simple tasks, that's fine. For anything non-trivial, it leads to:
+
+- Silent architectural decisions you didn't authorize
+- Deep implementation of the wrong approach
+- Changes that touch far more files than necessary
+- Having to undo work because you disagreed with the direction
+
+Planning is cheap. Undoing a complex implementation is not.
+
+## When to Use Plan Mode
+
+**Always use Plan Mode for:**
+- Tasks touching more than 2-3 files
+- Architectural changes (new patterns, refactors, moving modules)
+- Anything you'd want to review before it lands in your codebase
+- Tasks where the approach isn't obvious
+
+**Can skip for:**
+- Single-file edits with a clear target
+- Bug fixes where the location and fix are already known
+- Adding a straightforward function to an existing pattern
+
+A useful rule of thumb: if you'd write a design doc for it, plan it with Claude first.
+
+## How a Good Planning Session Looks
+
+```
+You: Before writing anything, explain your approach to adding 
+     pagination to the user list API. What files will you change 
+     and what's your plan?
+
+Claude: I'll modify three files:
+1. src/routes/users.ts — add ?page and ?limit query params
+2. src/db/users.ts — add LIMIT/OFFSET to the query
+3. src/types/api.ts — add PaginatedResponse<T> type
+
+I'll use cursor-based pagination rather than offset to avoid 
+the "moving window" problem with frequently updated data. 
+The cursor will be the last user's ID.
+
+Shall I proceed with this approach?
+
+You: Use offset pagination for now — cursor is overkill here. 
+     Go ahead.
+```
+
+That one exchange saves you from implementing cursor pagination and then having to roll it back.
+
+## Exploration vs. Execution
+
+Treat planning as an exploration phase:
+
+1. **Explore:** Claude reads the codebase, understands the problem, identifies what needs to change
+2. **Align:** You review the plan, course-correct anything wrong
+3. **Execute:** Claude implements the aligned plan
+
+The exploration phase should be liberal — Claude should read widely and understand fully. The execution phase should be disciplined — precise changes, verified by tests.
+
+## Getting Claude to Surface Assumptions
+
+Ask Claude to explicitly state its assumptions in the plan:
+
+```
+In your plan, list any assumptions you're making about how 
+the existing system works.
+```
+
+This surfaces hidden decisions before they become code.
+
+---
+
+<Exercise title="Use Plan Mode on a real feature" time="25 min">
+
+**Task:** Use Plan Mode before implementing a feature or refactor you've been meaning to do.
+
+**Steps:**
+1. Pick a task that touches at least 3 files
+2. Activate Plan Mode: `/plan` or start with "Before writing any code, outline your approach"
+3. Read Claude's plan carefully — identify any decisions you disagree with
+4. Redirect at least one thing in the plan before approving
+5. Let Claude execute the approved plan
+
+**Success Criteria:**
+- [ ] Claude produced a plan that listed specific files and approach before writing code
+- [ ] You found at least one assumption or decision to redirect
+- [ ] The final implementation matched the approved plan, not the original one
+- [ ] You avoided having to undo any significant work
+
+</Exercise>

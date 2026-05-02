@@ -1,0 +1,98 @@
+---
+title: CLAUDE.md Basics
+description: What CLAUDE.md is, what to put in it, and how to keep it useful.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## What is CLAUDE.md?
+
+`CLAUDE.md` is a file you put at the root of your project. Claude Code reads it automatically at the start of every session. It's your way of giving Claude persistent instructions that survive across sessions.
+
+Think of it as the onboarding doc you'd write for a new contractor: your stack, your conventions, what to avoid, and how things are organized.
+
+## What to Put In It
+
+The most useful things in a `CLAUDE.md`:
+
+**Your tech stack**
+```markdown
+## Stack
+- TypeScript, React 18, Next.js 14 App Router
+- PostgreSQL via Prisma
+- Tailwind CSS
+- Vitest for tests
+```
+
+**Naming and style conventions**
+```markdown
+## Conventions
+- Use camelCase for variables, PascalCase for components
+- All API routes go in src/app/api/
+- Database queries go in src/lib/db/ — never inline SQL
+- Tests live next to the file they test: Button.tsx → Button.test.tsx
+```
+
+**Commands Claude should know**
+```markdown
+## Commands
+- `npm test` — run tests
+- `npm run lint` — ESLint
+- `npm run typecheck` — tsc --noEmit
+- `npm run dev` — start dev server on port 3000
+```
+
+**What Claude should not touch**
+```markdown
+## Off Limits
+- Never edit files in src/generated/ — these are auto-generated
+- Don't modify package.json dependencies without asking
+- The legacy/ folder is read-only
+```
+
+## What NOT to Put In It
+
+A `CLAUDE.md` that's too long defeats itself. Claude reads the whole file on every session start — instructions buried in 500 lines of context get ignored.
+
+**Avoid:**
+- Exhaustive documentation of your entire codebase
+- Obvious things ("write good code", "use meaningful variable names")
+- Instructions for edge cases that come up once a year
+- Entire file contents or large code blocks
+
+**The creator of Claude Code uses ~100 lines and outperforms users with 800-line configs.**
+
+## How Long Should It Be?
+
+Under 300 lines for most projects. The sweet spot is 50–150 lines.
+
+If you feel like you need more, that's usually a sign you're trying to solve a problem with configuration that should be solved with project structure or conventions.
+
+## Generating a Starting Point
+
+Run `/init` inside a Claude session to have Claude generate a `CLAUDE.md` by scanning your project. This gives you a starting point — review and trim it before using it for real.
+
+```
+> /init
+```
+
+---
+
+<Exercise title="Write your project's first CLAUDE.md" time="20 min">
+
+**Task:** Create a `CLAUDE.md` for a real project you're working on.
+
+**Steps:**
+1. Run `/init` in a Claude session to generate a draft
+2. Open the generated file and cut anything obvious or unlikely to matter
+3. Add your actual conventions (the things that trip up new contributors)
+4. Add the commands Claude should use for testing and linting
+5. Start a fresh session and ask Claude to add a small new function — observe whether it follows your conventions
+
+**Success Criteria:**
+- [ ] `CLAUDE.md` is under 150 lines
+- [ ] Claude uses your naming conventions in the new function without being told
+- [ ] Claude uses the right test command when you ask it to run tests
+- [ ] You didn't have to repeat any instruction from `CLAUDE.md` during the session
+
+</Exercise>

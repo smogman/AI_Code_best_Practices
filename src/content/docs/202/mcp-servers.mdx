@@ -1,0 +1,145 @@
+---
+title: MCP Servers
+description: Connect Claude to external tools — databases, APIs, GitHub, browsers, and more.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## What MCP Is
+
+MCP (Model Context Protocol) is a standard that lets Claude connect to external tools and data sources. An MCP server exposes capabilities — querying a database, searching GitHub, controlling a browser — that Claude can use mid-session.
+
+Without MCP: Claude works only with your local files.  
+With MCP: Claude can query your production DB schema, search your issue tracker, or screenshot a live page.
+
+## Configuration
+
+MCP servers are configured in `.mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "server-name": {
+      "command": "npx",
+      "args": ["-y", "@some/mcp-server"],
+      "env": {
+        "API_KEY": "${MY_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+**Important:** `.mcp.json` often contains API keys. Add it to `.gitignore`. Use environment variable references (`${VAR_NAME}`) and keep actual secrets out of the file.
+
+## Commonly Used MCP Servers
+
+### PostgreSQL (read-only)
+```json
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "env": {
+        "POSTGRES_CONNECTION_STRING": "${DATABASE_URL}"
+      }
+    }
+  }
+}
+```
+
+Claude can now query your schema, explore table structure, and write queries — without you pasting schema docs into the chat.
+
+### GitHub
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+Claude can read issues, PRs, and repo content directly. Useful for `/fix-issue` workflows.
+
+### Playwright (Browser Control)
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@executeautomation/playwright-mcp-server"]
+    }
+  }
+}
+```
+
+Claude can open a browser, navigate to your dev server, take screenshots, and click elements. This is the verification loop for UI work.
+
+### Filesystem (Outside Project)
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/path/to/allow"
+      ]
+    }
+  }
+}
+```
+
+Gives Claude read access to directories outside your project root.
+
+## Using MCP in Practice
+
+Once an MCP server is configured, Claude uses it automatically when relevant. You can also ask explicitly:
+
+```
+Using the database MCP, show me the schema for the orders table.
+```
+
+```
+Open my dev server in the browser and take a screenshot of the checkout page.
+```
+
+```
+Find all open GitHub issues labeled "bug" and summarize them.
+```
+
+## Security Considerations
+
+- MCP servers run with whatever permissions you give them
+- A read-only DB connection is safer than read-write for most use cases
+- Don't connect Claude to production systems with write access unless you understand the risk
+- Review what each MCP server can do before adding it
+
+---
+
+<Exercise title="Connect Claude to your database schema" time="20 min">
+
+**Task:** Add the PostgreSQL MCP server (or SQLite equivalent) and let Claude explore your schema.
+
+**Steps:**
+1. Add the appropriate database MCP server to `.mcp.json`
+2. Use an environment variable for the connection string — don't hardcode it
+3. Add `.mcp.json` to `.gitignore` (or verify it's already there)
+4. Start a session and ask Claude: "Describe the database schema for this project"
+5. Ask Claude to write a query using that schema
+
+**Success Criteria:**
+- [ ] Claude can describe your tables and relationships without you providing the schema
+- [ ] Claude's query uses the correct column names from the actual schema
+- [ ] Your connection string is not hardcoded in `.mcp.json`
+- [ ] `.mcp.json` is in `.gitignore`
+
+</Exercise>

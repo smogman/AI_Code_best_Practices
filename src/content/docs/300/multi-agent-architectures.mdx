@@ -1,0 +1,130 @@
+---
+title: Multi-Agent Architectures
+description: Orchestration patterns for complex tasks that exceed what a single agent can reliably do.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## When Single-Agent Fails
+
+A single agent degrades on large tasks for two reasons:
+1. **Context exhaustion** — the task needs more information than fits in one window
+2. **Role conflict** — writing code and reviewing it in the same session leads to the same blind spots a human author has
+
+Multi-agent architectures solve both. Different agents with different contexts, reviewing each other's work.
+
+## The Writer/Reviewer Pattern
+
+The most widely used pattern. Two agents with separate contexts:
+
+- **Writer agent:** Implements the feature. Focused on making it work.
+- **Reviewer agent:** Reviews the output. Fresh context, no bias from the implementation choices.
+
+```
+Main session:
+1. Spawn Writer: "Implement feature X. Write tests. Produce a summary of what you did."
+2. Pass Writer's summary to Reviewer: "Review this implementation for correctness, 
+   security issues, and consistency with our conventions. The writer's summary is: [summary]"
+3. Pass Reviewer's feedback back to Writer: "Address these review findings: [findings]"
+```
+
+Why it works: the Reviewer hasn't been involved in writing the code. It reads it the way a colleague would during code review — looking for problems, not defending decisions.
+
+Community data suggests this produces significantly higher quality than single-agent implementation + self-review.
+
+## The Factory Pattern
+
+For tasks that are structurally identical but applied to many targets (files, endpoints, components):
+
+1. **Orchestrator agent:** Plans the work, breaks it into N identical units, defines the template
+2. **N Worker agents:** Each handles one unit, working in parallel, following the template
+3. **Quality gate agent:** Reviews all outputs against the defined standard
+
+Example: adding OpenAPI documentation to 20 API routes.
+
+```
+Orchestrator: "I need to add JSDoc + OpenAPI annotations to all 20 routes 
+in src/routes/. Create a template for what correct annotations look like, 
+then spawn one agent per route file."
+
+Worker (×20): "Add OpenAPI annotations to src/routes/users.ts following 
+this template: [template]. Run typecheck after."
+
+Quality gate: "Review all 20 annotated files. Flag any that deviate from 
+the template or have incorrect types."
+```
+
+## Fan-Out / Fan-In
+
+For research or analysis tasks where you need to gather information from many sources:
+
+1. **Fan-out:** Spawn N agents to independently research/analyze N things
+2. **Fan-in:** A synthesis agent combines all findings into a coherent output
+
+Example: auditing 15 modules for security vulnerabilities.
+
+```
+Fan-out: Spawn one agent per module. Each produces a structured security report.
+Fan-in: "Here are 15 security reports from individual module audits. 
+Synthesize them into a prioritized remediation plan."
+```
+
+The synthesis agent has clean context — it never touched the code, it only reads the reports.
+
+## The SPEC Pipeline
+
+For large features requiring design before implementation:
+
+1. **SPEC agent:** Reads the codebase, writes a detailed specification for the feature (not code, just design)
+2. **Review SPEC:** You (human) review and approve the spec
+3. **Implementation agent:** Reads the approved SPEC, writes the code
+4. **Test agent:** Reads the SPEC (not the code), writes tests based on expected behavior
+5. **Validation agent:** Verifies the implementation satisfies the SPEC
+
+This mirrors professional engineering workflows. Each stage is done by a fresh agent that can't be influenced by decisions made in earlier stages.
+
+## Worktrees for Parallel Filesystem Work
+
+When multiple agents need to make changes simultaneously without conflicting:
+
+```bash
+# Create isolated working directories
+git worktree add ../work-feature-a -b feature/a
+git worktree add ../work-feature-b -b feature/b
+git worktree add ../work-feature-c -b feature/c
+```
+
+Point each agent at its own worktree. After work is complete, review and merge each branch independently.
+
+## Quality Gates Between Stages
+
+Every multi-agent pipeline should have gates:
+
+- Pass/fail criteria defined at each stage boundary
+- Agents report structured output that the next stage consumes
+- Human review at key stage transitions (especially SPEC approval)
+- Tests run at the end of every implementation stage
+
+Without quality gates, errors propagate silently through the pipeline.
+
+---
+
+<Exercise title="Implement a feature using Writer/Reviewer" time="45 min">
+
+**Task:** Build a non-trivial feature (something that touches 3+ files) using the Writer/Reviewer pattern.
+
+**Steps:**
+1. Pick a feature you've been meaning to add
+2. Spawn a Writer agent with a specific task and "report back with what you changed and why"
+3. Have the Writer run tests before finishing
+4. Spawn a Reviewer agent with the Writer's summary as context. Ask it to flag correctness issues, security concerns, and convention violations
+5. Pass the review findings back to the Writer to address
+6. Compare the final code quality to your usual single-session approach
+
+**Success Criteria:**
+- [ ] The Reviewer found at least one issue the Writer didn't catch
+- [ ] The issue was addressed before you had to manually review
+- [ ] The final code passed tests and lint without your intervention
+- [ ] You can explain why this is better than asking a single agent to "implement and review"
+
+</Exercise>

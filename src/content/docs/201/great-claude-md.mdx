@@ -1,0 +1,122 @@
+---
+title: Writing a Great CLAUDE.md
+description: Advanced CLAUDE.md patterns for teams, complex projects, and consistent results.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## Beyond the Basics
+
+You learned the fundamentals in 102. This lesson covers the patterns that make `CLAUDE.md` work reliably at scale — for teams, complex projects, and the edge cases that trip people up.
+
+## The WHY/WHAT/HOW Framework
+
+Structure your `CLAUDE.md` in three layers:
+
+**WHY** — Project context. What this codebase does, who uses it, what matters most.
+```markdown
+## Project
+E-commerce platform for B2B customers. Checkout reliability is critical — 
+a 1% error rate costs ~$50k/month. Prioritize correctness over cleverness.
+```
+
+**WHAT** — Architecture. How the system is organized and what goes where.
+```markdown
+## Architecture
+- API layer: src/routes/ (Express, REST)
+- Business logic: src/services/ (no framework dependencies)
+- Data access: src/repositories/ (Prisma, never use ORM outside this layer)
+- Types: src/types/ (shared interfaces, no implementation)
+```
+
+**HOW** — Conventions. The specific rules for writing code here.
+```markdown
+## Conventions
+- All async functions must handle errors explicitly — no uncaught promises
+- Repository functions return Result<T, Error>, never throw
+- New routes need an integration test in tests/routes/
+```
+
+## The Size Problem
+
+A common failure mode: `CLAUDE.md` grows over time as you add rules for every edge case. Eventually it's 600 lines and Claude treats it like fine print — technically present but not followed.
+
+**Prune regularly.** After every few sessions, ask: which instructions did Claude actually follow? Which did it ignore? Remove the ones that aren't pulling weight.
+
+The goal is a `CLAUDE.md` where every line is load-bearing.
+
+## Team CLAUDE.md Patterns
+
+### Separate Absolute Rules from Preferences
+
+```markdown
+## Rules (non-negotiable)
+- Never commit directly to main
+- All DB migrations must be reversible
+- No secrets in source code
+
+## Preferences (Claude's defaults here)
+- Prefer functional patterns over class-based
+- Use named exports over default exports
+- Verbose variable names over short ones
+```
+
+Claude treats explicit "rules" sections more seriously than general prose.
+
+### Add Context for Non-Obvious Decisions
+
+Document the *why* behind unusual choices:
+
+```markdown
+## Why We Do X
+- We use global error boundaries instead of per-component try/catch because 
+  we had three incidents last year from swallowed errors. Don't change this pattern.
+- The legacy/ folder uses a different naming convention. Don't "fix" it — 
+  it's maintained by another team.
+```
+
+This prevents Claude from "helpfully" undoing intentional decisions.
+
+## Hierarchical CLAUDE.md (Monorepos)
+
+For monorepos, use multiple `CLAUDE.md` files:
+
+```
+/CLAUDE.md          ← shared rules, repo-wide conventions
+/apps/web/CLAUDE.md ← frontend-specific patterns
+/packages/api/CLAUDE.md ← backend-specific patterns
+```
+
+Claude reads them all, with more specific files taking precedence. Keep the root file to shared-only content.
+
+## Testing Your CLAUDE.md
+
+After significant changes to `CLAUDE.md`, run a "cold start" test:
+
+1. Start a fresh session (no prior context)
+2. Ask Claude: "What do you know about this project?"
+3. Ask Claude to do a small task that exercises your conventions
+4. Verify it followed them without prompting
+
+If Claude doesn't absorb a rule without being told, either the rule isn't in `CLAUDE.md` clearly enough, or the file is too long and the rule is being lost.
+
+---
+
+<Exercise title="Audit and improve your CLAUDE.md" time="30 min">
+
+**Task:** Systematically evaluate which instructions in your `CLAUDE.md` are actually working.
+
+**Steps:**
+1. Look at your last 5 sessions — did Claude violate any convention from `CLAUDE.md`?
+2. For each violation: was the rule unclear? Missing? Or is `CLAUDE.md` too long to absorb?
+3. Rewrite any unclear rules using the WHY/WHAT/HOW structure
+4. Remove any rules that haven't been needed in the last month
+5. Run a cold-start test: fresh session, ask Claude to summarize the project rules
+
+**Success Criteria:**
+- [ ] Your `CLAUDE.md` is shorter after the audit than before
+- [ ] Every remaining rule is clear enough to pass/fail without ambiguity
+- [ ] Claude can correctly summarize your key rules in a cold-start test
+- [ ] You identified at least one rule you were enforcing manually that should be in the file
+
+</Exercise>

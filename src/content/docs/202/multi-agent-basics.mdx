@@ -1,0 +1,103 @@
+---
+title: Multi-Agent Basics
+description: Use subagents to parallelize work and eliminate context pollution between tasks.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## What Multi-Agent Means
+
+Multi-agent means running more than one Claude session — either sequentially or in parallel — where each session is focused on a specific task and has its own clean context.
+
+The core benefit: **context isolation**. Each subagent starts fresh. Your main session doesn't get polluted with the details of a subtask.
+
+## Why Use Subagents?
+
+Two scenarios where subagents dramatically improve results:
+
+### 1. Parallel work
+Multiple independent tasks can run simultaneously. Instead of doing them in sequence in one session, spawn one agent per task and run them at the same time.
+
+```
+Main session: "I need to refactor three separate utility modules. 
+Spawn three subagents, one per module. Each should refactor its module 
+and run the tests before reporting back."
+```
+
+### 2. Context isolation
+A large task has distinct phases (research, planning, implementation, testing). Each phase pollutes context in ways that hurt later phases. Subagents isolate each phase.
+
+```
+Main session: "First, spawn a research agent to understand the existing 
+auth module. When it reports back, spawn an implementation agent with 
+a clean context to make the changes based on the research summary."
+```
+
+## How to Spawn a Subagent
+
+Ask Claude to use the Agent tool:
+
+```
+Use the Agent tool to spawn a subagent. Give it this task: [specific task]. 
+Have it report back with [specific output format].
+```
+
+Claude Code handles the spawning. The subagent runs with:
+- A fresh context window
+- Access to the same tools (file read/write, bash, MCP servers)
+- Instructions you provide at spawn time
+
+## Defining Good Subagent Tasks
+
+A subagent needs enough context to work independently. When spawning, provide:
+
+1. **What it should do** — specific, bounded task
+2. **What it needs to know** — the relevant context from your main session
+3. **What it should produce** — specific output format so you can use the result
+
+Bad: "Fix things in the auth module"  
+Good: "Read `src/auth/login.ts` and `src/auth/session.ts`. Find all places where errors are swallowed (caught but not re-thrown or logged). List each location with file, line number, and the error being swallowed."
+
+## Subagent Patterns
+
+### Research → Implementation Split
+1. **Research agent:** Explore the codebase, understand current patterns, identify what needs to change. Produces a summary.
+2. **Implementation agent:** Gets the summary as context. Makes the changes. No exploration noise in context.
+
+### Parallel Feature Work
+For N independent features/files, spawn N agents simultaneously.
+
+### Quality Gate Agent
+After implementation, spawn a fresh agent to review the changes — it hasn't been involved in writing them, so it reviews with fresh eyes.
+
+## Worktrees for True Isolation
+
+For work that needs true filesystem isolation (e.g., parallel agents that might conflict), use git worktrees. Each agent gets its own working directory on a separate branch.
+
+```bash
+git worktree add ../feature-branch-1 -b feature/refactor-auth
+git worktree add ../feature-branch-2 -b feature/refactor-payments
+```
+
+Then point each agent at its own worktree. Advanced usage — covered in 300.
+
+---
+
+<Exercise title="Split a task across two subagents" time="30 min">
+
+**Task:** Use the research → implementation split pattern on a real refactor.
+
+**Steps:**
+1. Pick a module you've been meaning to refactor (something with 2-3 files)
+2. Start a main session and spawn a **research agent**: "Read these files, identify the code smells and what should change. Produce a structured summary of findings."
+3. Read the research agent's summary
+4. Spawn an **implementation agent** with the summary as context: "Based on this analysis, make the changes."
+5. Compare the implementation quality to how it would have gone in a single session
+
+**Success Criteria:**
+- [ ] The research agent produced a useful structured summary
+- [ ] The implementation agent received the summary as explicit context (you passed it)
+- [ ] The implementation agent didn't re-read all the files from scratch
+- [ ] The final output is cleaner than what you'd get from a single mixed session
+
+</Exercise>

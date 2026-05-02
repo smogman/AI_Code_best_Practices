@@ -1,0 +1,158 @@
+---
+title: Skills (Custom Slash Commands)
+description: Create reusable slash commands for workflows your team runs repeatedly.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## What Skills Are
+
+Skills are custom slash commands you define for Claude Code. They're markdown files with instructions that become available as `/command-name` in any session.
+
+A skill called `fix-issue` becomes `/fix-issue`. A skill called `code-review` becomes `/code-review`.
+
+They're the mechanism for: "every time we do a code review, Claude should check these 8 things" — without having to re-explain those 8 things every session.
+
+## Where Skills Live
+
+Skills are markdown files in `.claude/skills/`:
+
+```
+.claude/
+  skills/
+    fix-issue.md
+    code-review.md
+    new-api-endpoint.md
+```
+
+Share them via git — your whole team gets the same commands.
+
+## Skill File Structure
+
+A skill file is just markdown with instructions. Claude reads it when you invoke the slash command.
+
+```markdown
+# fix-issue
+
+Fix a GitHub issue from the tracker.
+
+## Steps
+1. Read the issue description carefully
+2. Identify the relevant files
+3. Use Plan Mode to outline your approach before writing code
+4. Implement the fix
+5. Write a test that would have caught this bug
+6. Run the full test suite before reporting done
+
+## Output
+When done, summarize:
+- What the bug was
+- What you changed
+- How to verify the fix
+```
+
+## Passing Arguments to Skills
+
+You can pass arguments when invoking a skill:
+
+```
+> /fix-issue #142
+```
+
+Reference them in your skill file as `$ARGUMENTS`:
+
+```markdown
+# fix-issue
+
+Fix GitHub issue $ARGUMENTS.
+
+## Steps
+1. ...
+```
+
+## Practical Skill Examples
+
+### Code Review
+```markdown
+# code-review
+
+Review the staged changes for this PR.
+
+## Check for
+- Logic errors or edge cases not handled
+- Security issues (injection, auth bypass, info disclosure)
+- Performance problems (N+1 queries, unnecessary loops)
+- Missing error handling
+- Inconsistency with project conventions in CLAUDE.md
+
+## Output
+List issues by severity: Critical > High > Medium > Low.
+For each issue: file + line, what's wrong, suggested fix.
+```
+
+### New API Endpoint
+```markdown
+# new-api-endpoint
+
+Create a new REST API endpoint for: $ARGUMENTS
+
+## Requirements
+- Route goes in src/routes/
+- Business logic goes in src/services/ (not in the route handler)
+- Add input validation using zod
+- Add error handling — return appropriate HTTP status codes
+- Write integration tests in tests/routes/
+- Update the API documentation in docs/api.md
+
+## Don't
+- Put database queries directly in routes
+- Return stack traces to the client
+- Skip input validation
+```
+
+### Refactor
+```markdown
+# refactor
+
+Refactor: $ARGUMENTS
+
+## Rules
+1. Do not change behavior — only structure
+2. Tests must pass before and after
+3. Make one logical change at a time
+4. If you find a bug while refactoring, note it but don't fix it now
+
+Run tests before starting, and again after each significant change.
+```
+
+## Skills vs. CLAUDE.md
+
+| | CLAUDE.md | Skills |
+|---|---|---|
+| When active | Every session | When explicitly invoked |
+| Best for | Always-on rules and context | Specific repeatable workflows |
+| Length | Short (50-150 lines) | Can be detailed (as long as needed) |
+| Scope | Project-wide | Per-workflow |
+
+Put standing rules in `CLAUDE.md`. Put repeatable workflows in skills.
+
+---
+
+<Exercise title="Create a code-review skill for your team" time="25 min">
+
+**Task:** Write a `/code-review` skill tailored to your project's specific concerns.
+
+**Steps:**
+1. Create `.claude/skills/code-review.md`
+2. List the 5-8 things you always check in a code review (be specific to your project)
+3. Define what the output format should look like
+4. Start a session, make a small change with a known issue, and run `/code-review`
+5. Verify it catches the issue
+
+**Success Criteria:**
+- [ ] The skill exists at `.claude/skills/code-review.md`
+- [ ] Running `/code-review` produces a structured review without any prompting
+- [ ] The review checks for things specific to your project (not just generic advice)
+- [ ] You committed the skill so your team can use it
+
+</Exercise>

@@ -1,0 +1,114 @@
+---
+title: Cost & Token Optimization
+description: Practical budgeting, what's actually expensive, and how to get more for less.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## What Things Actually Cost
+
+Community data from practitioners suggests ~$13/developer/day for active Claude Code use. This varies widely based on workflow. Understanding what drives cost lets you optimize the right things.
+
+### High-cost actions
+- Reading large files repeatedly across sessions (the same file, session after session)
+- Verbose bash output dumped into context
+- Long back-and-forth correction loops
+- Running Opus on tasks that don't need it
+- Large `CLAUDE.md` files read every session
+
+### Low-cost actions
+- Targeted file reads (specific functions, not whole files)
+- Compact summaries and structured output
+- Short, focused sessions
+- Using Haiku for simple tasks
+
+## Model Tiers and When to Use Each
+
+| Model | Cost | Best for |
+|---|---|---|
+| Haiku | Cheapest | Simple edits, boilerplate, small fixes |
+| Sonnet | Mid | Most daily work — implementation, debugging |
+| Opus | Most expensive | Complex reasoning, architecture, multi-file planning |
+
+The default is usually Sonnet. A practical optimization: use Opus for the planning phase of complex tasks, then switch to Sonnet for implementation.
+
+```
+> /model opus
+Plan the refactor of the authentication module.
+[Review plan]
+> /model sonnet
+Execute the plan.
+```
+
+## The `CLAUDE.md` Size Tax
+
+Every session starts by reading your `CLAUDE.md`. A 500-line file costs 5× more per session than a 100-line file — and as covered in 201, it also degrades instruction-following.
+
+Keeping `CLAUDE.md` lean is both a quality practice and a cost practice.
+
+## Prompt Caching Value
+
+For repetitive workflows (running the same type of task many times), prompt caching can cut costs significantly. Cached tokens cost less than uncached tokens.
+
+Structure your sessions so stable content appears first:
+1. `CLAUDE.md` (stable — cached)
+2. Project context (stable for a session — cached after first use)
+3. The specific task (variable — not cached)
+
+Claude Code does this automatically. If you're building automated pipelines with the API, be deliberate about it.
+
+## The Session Length vs. Quality Trade-off
+
+There's a cost to long sessions beyond tokens: quality degrades. Short, focused sessions often cost *less* and produce *better* results than a single long session.
+
+This is counterintuitive but well-supported by community experience. The efficiency of a fresh context is real.
+
+## Parallelism Cost Considerations
+
+Running 10 parallel agents costs 10× per minute, but finishes the work faster. Whether this is cost-effective depends on:
+
+- Is the time savings worth the cost multiplier?
+- Do the tasks truly parallelize (no dependencies)?
+- Is the quality improvement from context isolation worth it?
+
+For most teams, 2-4 parallel agents on truly independent tasks is the sweet spot.
+
+## Budgeting for Teams
+
+Practical approaches teams use:
+- Per-developer monthly budget with soft alerts
+- Cost tracking by project or feature (correlate spend to output)
+- Scheduled batch processing overnight for non-urgent tasks (can use less expensive models or off-peak pricing)
+- Reserving Opus for PR review and architecture, Sonnet for everything else
+
+## Measuring What You're Actually Spending
+
+Use `/cost` regularly to build intuition:
+
+```
+> /cost
+```
+
+Run it before and after different types of tasks. You'll quickly develop a sense for what's expensive in your workflow — and it's often not what you'd expect.
+
+---
+
+<Exercise title="Audit your token usage and optimize one workflow" time="30 min">
+
+**Task:** Identify your most expensive workflow and make it at least 30% cheaper without reducing quality.
+
+**Steps:**
+1. Run several sessions of different types, checking `/cost` at the end of each
+2. Identify which workflow type is most expensive
+3. Diagnose why (long `CLAUDE.md`? verbose output? wrong model? long sessions?)
+4. Apply one optimization (trim CLAUDE.md, pipe verbose output, switch models, split sessions)
+5. Run the same workflow again and compare cost
+
+**Success Criteria:**
+- [ ] You identified your most expensive workflow type
+- [ ] You diagnosed the specific cost driver
+- [ ] The same work costs at least 30% less after optimization
+- [ ] Output quality is equal or better (run your tests to verify)
+- [ ] You know which model to use for which type of task in your workflow
+
+</Exercise>
