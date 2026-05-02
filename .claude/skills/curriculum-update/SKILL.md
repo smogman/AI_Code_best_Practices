@@ -169,6 +169,8 @@ Apply it to:
 - Any new paragraphs added to existing lessons
 - Exercise task descriptions and success criteria wording
 
+After completing the voice pass for each file, add `voicePassed: "YYYY-MM-DD"` (today's date) to the frontmatter as the last field before the closing `---`. This prevents the standalone `/voice-pass` skill from re-processing files that already went through the voice pass here.
+
 ---
 
 ## Step 7: Build Verification

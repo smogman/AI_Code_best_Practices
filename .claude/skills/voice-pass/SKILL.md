@@ -19,6 +19,8 @@ If no arguments are provided, process every lesson file across all courses:
 - `src/content/docs/300/*.mdx`
 - And any other numbered course directories that exist
 
+**Skip files that are already voice-passed** unless the user explicitly passes them as arguments. A file is already voice-passed if its frontmatter contains a `voicePassed` field (e.g., `voicePassed: "2026-05-02"`). Read the frontmatter before processing each file and skip it if this field is present. Log skipped files in the report.
+
 Do NOT touch:
 - `src/content/docs/research/` — research docs have their own voice pass in the research skill
 - `src/content/docs/templates/` — these are templates, not prose
@@ -76,6 +78,8 @@ Do:
 ### 5. Write the file
 
 Write the rewritten version back to the same file path. The structure, frontmatter, code, and components stay identical — only the prose changes.
+
+Add `voicePassed: "YYYY-MM-DD"` (today's date) to the frontmatter of each file after rewriting it, inserted as the last field before the closing `---`. This marks the file as processed so future runs skip it.
 
 ---
 
