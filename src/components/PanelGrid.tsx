@@ -3,12 +3,14 @@ import { pages, categoryMeta, type PageEntry } from '../data/pages';
 
 const categories = ['research', 'guides', 'templates', 'raw-notes'] as const;
 
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
 function PanelCard({ page }: { page: PageEntry }) {
   const cat = categoryMeta[page.category];
 
   return (
     <a
-      href={page.slug}
+      href={`${base}${page.slug}`}
       style={{
         display: 'flex',
         flexDirection: 'column',
