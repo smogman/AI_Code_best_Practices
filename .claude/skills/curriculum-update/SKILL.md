@@ -147,7 +147,31 @@ No file changes needed. The finding already lives in the research docs.
 
 ---
 
-## Step 6: Build Verification
+## Step 6: Voice Pass
+
+Before building, rewrite all **newly written or newly updated** prose in the user's voice using the voice MCP server. Do NOT touch existing lesson content that was already there before this session.
+
+For each new or updated lesson file:
+
+1. Call `mcp__voice__retrieve_voice_style_context` with the raw draft prose as the `prompt` parameter. Pass the unedited text — do not summarize or paraphrase it first.
+2. Read the returned style guidance carefully.
+3. Rewrite the prose following that guidance so it sounds like the user, not like AI-generated documentation.
+4. Replace the draft in the file with the rewritten version.
+
+Skip this step for:
+- Frontmatter (title, description fields)
+- Code blocks and inline code
+- The `<Exercise>` component structure itself (keep the format)
+- `astro.config.mjs` sidebar entries
+
+Apply it to:
+- All paragraph prose in new lesson files
+- Any new paragraphs added to existing lessons
+- Exercise task descriptions and success criteria wording
+
+---
+
+## Step 7: Build Verification
 
 Run `npm run build` and fix any errors before reporting done.
 
