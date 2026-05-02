@@ -1,0 +1,1716 @@
+---
+title: Advanced Patterns
+description: Power-user techniques for getting maximum leverage from Claude Code - multi-agent orchestration, specialized workflows, and emerging patterns
+---
+
+The practices covered in the [Consensus Practices](/research/consensus-practices) and [Contested Practices](/research/contested-practices) pages represent the foundation of effective Claude Code usage. This page goes further, documenting fourteen advanced patterns that push beyond standard workflows into multi-agent orchestration, specialized development methodologies, and emerging techniques that are still being refined by the community.
+
+Each pattern is assigned a confidence rating reflecting the breadth and quality of evidence behind it. A 4/5 means multiple credible sources have documented the pattern with consistent results. A 2/5 means the pattern comes from a single practitioner or is too new for broad validation, but the underlying logic is sound enough to warrant documentation. These are patterns that power users are experimenting with today and that may become standard practice tomorrow -- or may prove to be dead ends. They are included here because the reasoning behind each one is instructive regardless of whether the specific technique survives.
+
+import ContentPanels from '../../../components/ContentPanels';
+
+<ContentPanels client:load accentColor="#60a5fa" items={[
+  { id: "advanced-1", title: "Writer/Reviewer Pattern", description: "Two separate Claude sessions: one writes code, another reviews with fresh context. Fresh sessions eliminate anchoring bias, sycophancy, and context rot.", confidence: 5, date: "2026-04-11", icon: "✍️" },
+  { id: "advanced-2", title: "Throw-Away Draft Method", description: "Create an initial version to understand what changes are needed, then discard and run a second iteration with sharper prompts.", confidence: 3, date: "2026-04-11", icon: "🗑️" },
+  { id: "advanced-3", title: "Multi-Model Review", description: "Use Opus for coding but a different model (GPT, Gemini) for review. Different models catch different classes of issues.", confidence: 2, date: "2026-04-11", icon: "🔀" },
+  { id: "advanced-4", title: "Voice-Driven Development", description: "Use voice dictation to brain-dump context and requirements. Better for complex features with many edge cases.", confidence: 2, date: "2026-04-11", icon: "🎙️" },
+  { id: "advanced-5", title: "The Factory Model", description: "Six-step production line: Plan → Spawn → Monitor → Verify → Integrate → Retro. With kill criteria and token budgets.", confidence: 3, date: "2026-04-11", icon: "🏭" },
+  { id: "advanced-6", title: "Fan-Out Migrations", description: "Loop through files calling claude -p for each with --allowedTools scoping. Test on 2-3 files, refine prompt, run at scale.", confidence: 3, date: "2026-04-11", icon: "📤" },
+  { id: "advanced-7", title: "Let Claude Interview You", description: "Ask Claude to interview you about requirements, edge cases, and tradeoffs before implementation. Write a SPEC.md, then fresh session.", confidence: 3, date: "2026-04-11", icon: "🎤" },
+  { id: "advanced-8", title: "SPEC → TASKS → AGENTS Pipeline", description: "Full autonomous build: SPEC.md defines requirements, TASKS.md decomposes, AGENTS/ holds prompts, ORCHESTRATE.sh runs them. Case study: 14 atomic commits in 45 min.", confidence: 3, date: "2026-04-11", icon: "🔧" },
+  { id: "advanced-9", title: "Scheduled Autonomous Agents", description: "Cron-scheduled Claude tasks, now formalized as official Routines (Week 16, April 2026). Example: Monday 9 AM query Sentry for worst issues and open PRs with fixes.", confidence: 3, date: "2026-04-11", icon: "⏰" },
+  { id: "advanced-10", title: "Skills for Domain Knowledge", description: "Use .claude/skills/ for domain-specific knowledge that loads on demand. ~200 lines of instructions, templates, and gotchas.", confidence: 4, date: "2026-04-11", icon: "🧠" },
+  { id: "advanced-11", title: "Auto Mode for Supervised Autonomy", description: "Two-stage AI classifier auto-approves safe actions and blocks four threat categories. 0.4% false positive rate. Replaces --dangerously-skip-permissions.", confidence: 4, date: "2026-04-11", icon: "🛡️" },
+  { id: "advanced-12", title: "Prompt Caching Discipline", description: "Structure CLAUDE.md for max cache hits, batch related work (3.8x cheaper), run /compact every 30-45 min. 90% hit rates, 84% input cost savings.", confidence: 4, date: "2026-04-11", icon: "💾" },
+  { id: "advanced-13", title: "Spec-Driven Development", description: "Four-phase workflow: parallel research → specification → interview refinement → task delegation. 14 atomic commits in 45 min at 71% context.", confidence: 4, date: "2026-04-11", icon: "📋" },
+  { id: "advanced-14", title: "Git Workflow Discipline", description: "Feature branches always, Conventional Commits enforced in CLAUDE.md, atomic commits, pre-push git diff review. Prevents invisible drift and keeps history clean.", confidence: 4, date: "2026-05-01", icon: "🌿", isNew: true },
+]} />
+
+<div id="advanced-1">
+
+## 1. Writer/Reviewer Pattern
+
+**Confidence: 5/5** -- Documented by Anthropic, Addy Osmani, and Boris Cherny. Supported by Anthropic's production code review system. Hacker News discussion confirms cross-context review eliminates anchoring bias and sycophancy.
+
+### What It Is
+
+The Writer/Reviewer pattern uses two separate Claude sessions for the same piece of work: one session writes the code, and a completely separate session reviews it. The reviewer has no access to the conversation history of the writer -- it sees only the diff, the codebase, and whatever review criteria you provide. This separation eliminates the sunk-cost bias that occurs when the same agent reviews its own output.
+
+The pattern mirrors a well-established principle in human software engineering: the person who writes code is the worst person to review it, because they carry implicit assumptions about what the code is supposed to do. A fresh pair of eyes -- whether human or AI -- catches errors that the author cannot see because they are too close to the implementation.
+
+### When to Use It
+
+Use the Writer/Reviewer pattern when the cost of a bug reaching production is high relative to the cost of running a second Claude session. This includes security-sensitive code, data pipeline logic, financial calculations, public API surface changes, and any code that will be difficult to roll back. It is also valuable for complex refactoring where the blast radius of a mistake extends across multiple files or modules.
+
+Do not use it for trivial changes, boilerplate generation, or exploratory prototyping where the cost of a bug is low and the overhead of a second session is not justified.
+
+### How to Implement It
+
+The simplest implementation uses two terminal windows or two git worktrees (see the [Multi-Agent Patterns Guide](/guides/multi-agent-guide/) for a full walkthrough of this and other multi-session workflows):
+
+**Writer session:**
+```
+# Terminal 1: Writer works on a feature branch
+claude
+
+> Implement the rate limiting middleware for the /api/payments endpoint.
+> Follow the specification in docs/rate-limiting-spec.md.
+> Write tests covering all edge cases listed in the spec.
+```
+
+**Reviewer session (after writer completes):**
+```
+# Terminal 2: Reviewer looks at the diff with fresh context
+claude
+
+> Review the changes on branch feature/rate-limiting against main.
+> Focus on: correctness of the sliding window algorithm, edge cases
+> (null inputs, Redis unavailability, clock skew), and adherence to
+> the rate limiting spec in docs/rate-limiting-spec.md.
+> Flag any logic errors, missed edge cases, or silent assumptions.
+```
+
+A more structured approach uses a CLAUDE.md rule to formalize the pattern:
+
+```markdown
+# CLAUDE.md (reviewer session)
+
+## Review Protocol
+- You are acting as a code reviewer, not an implementer.
+- Review the diff between the current branch and main.
+- For each file changed, check:
+  - Logic correctness (especially edge cases and error handling)
+  - Adherence to the specification (if one exists)
+  - Silent assumptions that should be documented or flagged
+  - Security implications (input validation, authentication checks)
+- Do NOT suggest style changes or minor refactoring.
+- Provide findings as a numbered list with severity (critical/warning/nit).
+```
+
+**Test-Writer/Code-Writer variant:**
+
+A powerful variation reverses the typical TDD flow: one session writes tests from a specification, and a separate session writes the implementation to make those tests pass. Because the test-writing session has no knowledge of the implementation approach, it tends to write more adversarial tests that probe edge cases rather than confirming happy paths.
+
+```
+# Session 1: Test Writer
+> Read the specification in docs/feature-spec.md.
+> Write a comprehensive test suite for this feature.
+> Include tests for: happy path, all error conditions listed in the spec,
+> boundary values, concurrent access, and invalid input.
+> Do NOT implement the feature -- only write tests.
+
+# Session 2: Code Writer (after tests are committed)
+> The test suite in tests/test_rate_limiter.py defines the expected behavior
+> for the rate limiting middleware. Implement the middleware to make all
+> tests pass. Do not modify the tests.
+```
+
+### Pros and Cons
+
+**Pros:**
+- Catches logic errors that self-review misses (the reviewer has no sunk-cost bias)
+- Mirrors proven human code review practices
+- The test-writer variant produces more adversarial, comprehensive test suites
+- Anthropic's own production code review system validates this architecture at scale, achieving under 1% false positive rates
+
+**Cons:**
+- Approximately doubles the token cost for reviewed code
+- Adds latency to the development cycle (writer must finish before reviewer starts)
+- Requires managing two sessions and communicating context between them (usually via the diff and specification files)
+- Overkill for low-risk changes where the review cost exceeds the bug cost
+
+**Sources:** Anthropic (Code Review documentation), Addy Osmani (The Code Agent Orchestra), Boris Cherny (Claude Code creator workflow).
+
+</div>
+
+<div id="advanced-2">
+
+## 2. Throw-Away Draft Method
+
+**Confidence: 3/5** -- Documented by Sankalp. Consistent with observed Claude behavior patterns around cold-start problems.
+
+### What It Is
+
+The Throw-Away Draft method addresses a fundamental challenge with AI-assisted development: Claude often struggles to produce high-quality output for complex features on the first attempt, not because it lacks capability, but because neither you nor Claude fully understand the problem until an initial implementation reveals the hidden complexities. The method makes this explicit by treating the first implementation as a learning exercise that will be discarded.
+
+The workflow has two distinct phases. In the first phase, you give Claude a rough description of the feature and let it build a complete implementation. You do not optimize your prompts, you do not agonize over the specification, and you do not correct Claude's mistakes. The goal is not good code -- the goal is to discover what questions need answering, what edge cases exist, what the actual scope of the change is, and where the architectural friction points lie. In the second phase, you discard the first implementation entirely (or nearly entirely), write a precise specification informed by everything you learned, and have Claude build the real version from scratch with dramatically better guidance.
+
+### When to Use It
+
+Use this method when you are building a feature that is genuinely complex and where the requirements are not fully understood upfront. This includes features that span multiple modules, involve unfamiliar APIs or libraries, require architectural decisions you are uncertain about, or have edge cases that are hard to enumerate without seeing a concrete implementation.
+
+Do not use it for well-understood tasks where you can write a precise specification upfront. The method's overhead (an entire discarded implementation) is only justified when the learning value of the first pass is high.
+
+### How to Implement It
+
+**Phase 1: The Learning Draft**
+
+```
+# Start a session with minimal guidance
+claude
+
+> Build a webhook processing system that receives events from Stripe,
+> validates them, and updates our subscription records.
+> Use the patterns in our existing codebase.
+```
+
+Let Claude build the entire feature. As it works, take notes on:
+- What questions came up that you did not anticipate
+- What architectural decisions Claude made (and whether they were right)
+- What edge cases the implementation revealed
+- Where Claude struggled or made assumptions
+
+Do not correct Claude during this phase. Let it complete the full implementation. The output is disposable -- its value is in what it teaches you, not in the code itself.
+
+**Phase 2: The Real Implementation**
+
+```
+# Clear context entirely, start a fresh session
+claude
+
+> Build a Stripe webhook processing system with these specific requirements:
+>
+> Architecture:
+> - Webhook receiver endpoint at /api/webhooks/stripe
+> - Signature validation using the Stripe SDK (not manual HMAC)
+> - Event routing through a handler registry pattern (see src/events/registry.ts)
+> - Idempotency tracking in the webhooks_received table
+>
+> Edge cases to handle:
+> - Duplicate events (Stripe sends retries) -- use idempotency key
+> - Out-of-order events -- check event timestamp against last processed
+> - Unknown event types -- log and acknowledge (200) without processing
+> - Signature validation failure -- return 400, log with alert level
+>
+> Do NOT modify the subscription model directly. Use the existing
+> SubscriptionService.update() method which handles state transitions.
+```
+
+The second prompt is dramatically more precise because you learned from the first draft what the actual challenges are. The resulting implementation is typically higher quality because Claude has clear guidance on every decision point that the first draft revealed as ambiguous.
+
+**Optional: Extract, Don't Discard**
+
+A pragmatic variation: instead of discarding the first draft entirely, extract the parts that worked well and incorporate them into the second-phase specification. If Claude's first draft had a clever approach to event routing but poor error handling, reference the routing approach in your second prompt while specifying the error handling explicitly.
+
+### Pros and Cons
+
+**Pros:**
+- Produces significantly higher quality output on the second pass because the prompt is informed by real implementation experience
+- Handles the "cold start" problem where neither you nor Claude understands the full scope upfront
+- The first draft often reveals requirements and edge cases that no amount of upfront planning would have surfaced
+- Psychologically easier to let Claude work freely when you know the output is disposable
+
+**Cons:**
+- Doubles the token cost (you pay for the discarded draft)
+- Doubles the wall-clock time for the feature
+- Requires discipline to actually discard the first draft rather than trying to patch it (patching is almost always worse than rebuilding with better guidance)
+- Not necessary for well-understood features where a good specification can be written upfront
+
+**Source:** Sankalp (Claude Code 2.0 Guide).
+
+</div>
+
+<div id="advanced-3">
+
+## 3. Multi-Model Review
+
+**Confidence: 2/5** -- Documented by Sankalp. Logical but limited empirical validation specific to Claude Code workflows.
+
+### What It Is
+
+Multi-Model Review extends the Writer/Reviewer pattern by using a different AI model -- not just a different session -- for the review phase. The hypothesis is that different models have different blind spots: Claude may be strong at certain types of reasoning but consistently miss specific categories of bugs, while GPT or Gemini may catch those bugs but miss others. By using a different model for review, you get a form of intellectual diversity that a same-model review cannot provide.
+
+A related application uses a different model for the planning and research phase before triggering Claude Code for implementation. Gemini, for example, offers a free tier with a 1-million-token context window, making it potentially well-suited for ingesting large specifications, documentation sets, or codebases as research context before distilling that into a focused implementation prompt for Claude Code.
+
+### When to Use It
+
+Consider multi-model review when you are working on code where correctness is critical and you want maximum coverage of potential issues. It is particularly relevant when you have observed that Claude consistently misses a specific class of bugs in your codebase -- a different model may catch those specific issues.
+
+The planning/research variant is useful when you need to process more context than fits in Claude's window, or when you want a second opinion on architectural decisions before committing to an implementation approach.
+
+### How to Implement It
+
+**Cross-model code review:**
+
+```bash
+# Step 1: Claude Code implements the feature
+claude -p "Implement the caching layer per the spec in docs/caching-spec.md" \
+  --allowedTools Edit,Write,Bash
+
+# Step 2: Export the diff
+git diff main...HEAD > /tmp/review-diff.patch
+
+# Step 3: Use a different model to review
+# Example with Gemini CLI
+gemini -p "Review this diff for logic errors, missed edge cases,
+  and security issues. The codebase uses TypeScript with Express.
+  Focus on correctness, not style.
+
+  $(cat /tmp/review-diff.patch)"
+```
+
+**Gemini-for-research, Claude-for-implementation:**
+
+```bash
+# Step 1: Use Gemini's large context window for research
+gemini -p "I need to implement a webhook processing system that
+  integrates with Stripe. Here is our current codebase structure
+  and the Stripe API documentation. Analyze both and produce a
+  detailed implementation plan including: architecture decisions,
+  edge cases to handle, and specific files that need to change.
+
+  $(cat docs/stripe-api-reference.md)
+  $(find src -name '*.ts' -exec head -20 {} \;)"
+
+# Step 2: Take Gemini's plan and feed it to Claude Code
+claude -p "Implement the following plan for Stripe webhook processing:
+  [paste Gemini's output]
+  Follow the existing patterns in this codebase."
+```
+
+**CLAUDE.md integration for cross-model workflow:**
+
+```markdown
+# CLAUDE.md
+
+## Review Process
+After completing any feature implementation:
+1. Generate a diff summary with `git diff main...HEAD --stat`
+2. The developer will run a cross-model review before merging
+3. Address any findings from the cross-model review in a follow-up commit
+```
+
+### Pros and Cons
+
+**Pros:**
+- Different models catch different classes of issues (genuine intellectual diversity)
+- Gemini's free 1M token context window is valuable for research and planning phases
+- Catches model-specific blind spots that same-model review cannot detect
+- Low cost if the review model has a free tier
+
+**Cons:**
+- Adds significant workflow complexity (managing multiple CLI tools, contexts, and outputs)
+- The review model may not understand codebase-specific patterns that Claude has been taught via CLAUDE.md
+- Different models have different strengths -- the review model may flag non-issues or miss context-dependent correctness
+- No established tooling for automating this workflow end-to-end
+- Limited empirical data on how much additional value cross-model review provides over same-model review
+
+**Source:** Sankalp (Claude Code 2.0 Guide).
+
+</div>
+
+<div id="advanced-4">
+
+## 4. Voice-Driven Development
+
+**Confidence: 2/5** -- Documented by incident.io. Emerging practice with limited but promising evidence.
+
+### What It Is
+
+Voice-Driven Development replaces typed prompts with spoken ones for specific phases of the Claude Code workflow. Using tools like SuperWhisper or Claude Code's built-in push-to-talk feature, you dictate your requirements, context, and constraints verbally rather than typing them. The spoken input is transcribed and sent to Claude as a regular prompt.
+
+The insight behind this pattern is that typing and speaking engage different cognitive processes. When typing a prompt, developers tend to be terse -- they omit context they think is "obvious," skip edge cases they mean to get to later, and under-specify requirements because typing detailed specifications feels tedious. When speaking, the same developers naturally include more context: they explain the "why" behind requirements, mention edge cases as they occur to them, describe the user experience they envision, and provide the kind of rich, conversational context that leads to better Claude output.
+
+This is not about convenience or speed. It is about changing the mode of communication to access context that resists text articulation.
+
+### When to Use It
+
+Voice input is most valuable for the initial context-setting phase of complex features -- the five-minute brain dump where you explain what you are building, why it matters, what the tricky parts are, and what you have already tried. It is also useful for describing UI/UX requirements, which are inherently visual and spatial and often poorly served by text descriptions.
+
+Do not use voice for precise technical specifications (API contracts, data schemas, algorithm details) where exact wording matters. Voice transcription introduces errors, and the conversational style of spoken language can be ambiguous in ways that matter for technical specifications.
+
+### How to Implement It
+
+**Using SuperWhisper (macOS):**
+
+SuperWhisper is a local transcription tool that runs a speech-to-text model on your machine. Configure it to transcribe into the focused application (your terminal running Claude Code).
+
+1. Install SuperWhisper and configure it for high-accuracy mode
+2. Open your Claude Code terminal session
+3. Activate SuperWhisper (typically via a global hotkey)
+4. Speak your requirements naturally for 2-5 minutes
+5. Review the transcription, make any corrections, and send to Claude
+
+**Example spoken prompt (transcribed):**
+
+```
+OK so I need to build a notification preferences system. The user should
+be able to choose which types of notifications they get -- like new
+comments on their posts, someone following them, weekly digest emails,
+that kind of thing. Right now we just have a boolean for email
+notifications on or off, but users keep asking for more granularity.
+
+The tricky part is we have three notification channels -- email, push,
+and in-app -- and users should be able to configure each type
+independently per channel. So like, they might want push notifications
+for new followers but only email for the weekly digest.
+
+Edge cases I'm thinking about: what happens when we add a new
+notification type? It should probably default to on for email and in-app
+but off for push. Also we need to handle the migration from the old
+boolean field -- if someone had notifications off, that should map to
+everything off across all channels.
+
+The relevant files are the user model in src/models/user.ts, the
+notification service in src/services/notifications.ts, and the
+settings API routes in src/routes/settings.ts.
+```
+
+Compare this to the typed prompt most developers would actually write:
+
+```
+Add granular notification preferences. Users should be able to configure
+notification types per channel (email, push, in-app). See the user model
+and notification service.
+```
+
+The spoken version contains critical information about migration, defaults for new notification types, and the specific files to modify -- context that the developer would have typed eventually (probably after Claude's first implementation missed these requirements), but that voice captured upfront.
+
+**Using Claude Code's push-to-talk:**
+
+Claude Code has a built-in push-to-talk feature. Press the configured hotkey, speak your prompt, and release. The transcription is inserted directly into the input field.
+
+### Pros and Cons
+
+**Pros:**
+- Captures richer context than most developers would type, especially for complex features
+- Natural language descriptions of UI/UX requirements are often more effective than terse text specifications
+- Reduces the "blank page" problem where developers stare at the prompt trying to figure out what to type
+- The incident.io team reported measurable productivity improvements with voice-driven workflows
+
+**Cons:**
+- Transcription errors can introduce ambiguity (especially for technical terms, library names, and code identifiers)
+- Spoken language is inherently less precise than written specifications for technical details
+- Not suitable for all environments (open offices, shared spaces)
+- Requires additional tooling (SuperWhisper or equivalent)
+- The transcribed output benefits from a quick review/edit pass before sending to Claude, which partially negates the convenience
+
+**Source:** incident.io (Shipping Faster with Claude Code and Git Worktrees).
+
+</div>
+
+<div id="advanced-5">
+
+## 5. The Factory Model
+
+**Confidence: 3/5** -- Documented by Addy Osmani. Well-reasoned framework but limited published data on the specific parameters.
+
+### What It Is
+
+The Factory Model treats multi-agent Claude Code development as a production line with six distinct phases, each with clear inputs, outputs, and quality gates. Rather than ad-hoc parallelism (spinning up multiple Claude sessions and hoping for the best), the Factory Model imposes structure on how agents are created, monitored, and coordinated.
+
+The model recognizes that the bottleneck in multi-agent work is not code generation -- it is verification and integration. Writing code in parallel is easy; ensuring that the parallel streams merge correctly is hard. The Factory Model addresses this by making verification an explicit, first-class phase rather than an afterthought.
+
+### When to Use It
+
+Use the Factory Model when you are working on a feature or project that can be decomposed into three or more independent work streams. It requires enough task independence that multiple agents can work in parallel without constantly blocking on each other, and enough complexity that the overhead of the six-phase process is justified by the throughput gain.
+
+Do not use it for small features, tightly-coupled changes, or projects where you are the only developer and cannot effectively monitor multiple agents.
+
+### How to Implement It
+
+**Phase 1: Plan -- Write specs with acceptance criteria**
+
+Before spawning any agents, write a specification that decomposes the work into independent tasks with clear acceptance criteria. Each task should be completable by a single agent without requiring coordination with other agents during implementation.
+
+```markdown
+# SPEC.md - User Dashboard Redesign
+
+## Task 1: Dashboard API endpoints
+- **Agent type:** Backend
+- **Files:** src/routes/dashboard.ts, src/services/dashboard.ts
+- **Acceptance criteria:**
+  - GET /api/dashboard returns user stats, recent activity, notifications
+  - Response time under 200ms with caching
+  - All existing tests pass, 3+ new integration tests
+
+## Task 2: Dashboard UI components
+- **Agent type:** Frontend
+- **Files:** src/components/dashboard/*
+- **Acceptance criteria:**
+  - Matches Figma design within 2px tolerance
+  - Responsive down to 375px width
+  - Accessibility: all interactive elements keyboard-navigable
+  - Storybook stories for each component
+
+## Task 3: Real-time notification system
+- **Agent type:** Backend
+- **Files:** src/services/notifications.ts, src/websocket/*
+- **Acceptance criteria:**
+  - WebSocket connection for live notification updates
+  - Graceful degradation when WebSocket unavailable (polling fallback)
+  - Under 500ms delivery latency p95
+```
+
+**Phase 2: Spawn -- Create team and assign agents**
+
+Spawn agents in separate git worktrees, each with a focused task and scoped file access.
+
+```bash
+#!/bin/bash
+# spawn-agents.sh
+
+# Create worktrees for parallel work
+git worktree add ../dashboard-api feature/dashboard-api
+git worktree add ../dashboard-ui feature/dashboard-ui
+git worktree add ../dashboard-notifications feature/dashboard-notifications
+
+# Spawn agents with scoped tasks
+cd ../dashboard-api && claude --print "Implement Task 1 from SPEC.md. \
+  Only modify files listed in the task. Run tests after implementation." &
+
+cd ../dashboard-ui && claude --print "Implement Task 2 from SPEC.md. \
+  Only modify files listed in the task. Create Storybook stories." &
+
+cd ../dashboard-notifications && claude --print "Implement Task 3 from SPEC.md. \
+  Only modify files listed in the task. Run tests after implementation." &
+```
+
+**Phase 3: Monitor -- Check every 5-10 minutes, do not hover**
+
+Resist the urge to watch agents work in real time. Check every 5-10 minutes for:
+- Is the agent still making progress? (Look for new file changes)
+- Has the agent asked a question that is blocking it?
+- Has the agent gone off-track? (Check the diff against the spec)
+
+Hovering wastes the human's time and tempts micromanagement that defeats the purpose of parallel execution.
+
+**Phase 4: Verify -- Run tests and review (THE bottleneck)**
+
+This is where most multi-agent workflows break down. Each agent's output must be independently verified before integration. This phase is inherently serial for the human and cannot be fully parallelized.
+
+```bash
+# Verify each agent's output
+cd ../dashboard-api
+npm test
+git diff main --stat  # Review scope of changes
+
+cd ../dashboard-ui
+npm test
+npm run storybook:build  # Verify Storybook stories compile
+git diff main --stat
+
+cd ../dashboard-notifications
+npm test
+git diff main --stat
+```
+
+**Phase 5: Integrate -- Merge branches, resolve conflicts**
+
+Merge each feature branch into the integration branch. Resolve conflicts, which typically arise when multiple agents modified shared files like package.json, route definitions, or type declarations.
+
+```bash
+git checkout main
+git merge feature/dashboard-api
+git merge feature/dashboard-ui        # May conflict on shared types
+git merge feature/dashboard-notifications  # May conflict on route config
+npm test  # Full test suite after integration
+```
+
+**Phase 6: Retro -- Update AGENTS.md with new patterns**
+
+After each Factory cycle, document what worked and what did not. Update your configuration to reflect lessons learned.
+
+```markdown
+# AGENTS.md - Lessons Learned
+
+## 2026-04-11: Dashboard Redesign
+- Backend agent completed in 12 min, under budget
+- Frontend agent needed 2 iterations on responsive layout
+- Notification agent got stuck on WebSocket testing (no test server) --
+  added mock WebSocket server to test fixtures for future use
+- Conflict in shared types file -- next time, define shared types in
+  the spec so all agents use the same definitions
+```
+
+**Kill criteria and token budgets:**
+
+Osmani recommends specific operational parameters:
+
+```markdown
+# .claude/settings.json annotations (conceptual)
+
+## Kill Criteria
+- If an agent is stuck on the same error for 3+ iterations, reassign
+  the task to a fresh agent with additional context about the failure.
+- Do not let agents thrash -- human intervention at iteration 3 is
+  cheaper than letting the agent burn context.
+
+## Token Budgets by Agent Type
+- Frontend agents: ~180k tokens (UI work is typically less context-heavy)
+- Backend agents: ~280k tokens (API + database + integration logic)
+- Full-stack agents: ~350k tokens
+
+## Auto-Pause
+- Pause agent at 85% context utilization
+- At this threshold, either compact or reassign remaining work
+```
+
+### Pros and Cons
+
+**Pros:**
+- Imposes structure on multi-agent chaos, making parallel work predictable and repeatable
+- Explicit verification phase catches integration issues early
+- Token budgets and kill criteria prevent runaway costs (see [Cost & Context Management](/research/cost-and-context/) for detailed budgeting frameworks)
+- Retro phase creates institutional knowledge that improves future cycles
+- Scales to larger teams where multiple humans can each manage a subset of agents
+
+**Cons:**
+- Significant overhead for small features (the six phases take time even when the implementation is simple)
+- Requires enough task independence that agents can work in parallel without blocking
+- The verification phase is a serial bottleneck that limits throughput regardless of how many agents you run
+- Token budgets are approximate and may need calibration per codebase
+- Requires familiarity with git worktrees and parallel session management
+
+**Source:** Addy Osmani (The Code Agent Orchestra, Coding for the Future Agentic World).
+
+</div>
+
+<div id="advanced-6">
+
+## 6. Fan-Out Migrations
+
+**Confidence: 3/5** -- Documented by Anthropic. Well-suited to Claude Code's CLI capabilities.
+
+### What It Is
+
+Fan-Out Migrations use Claude Code's headless mode (`claude -p`) to apply the same transformation across a large number of files. Instead of giving Claude a single prompt to migrate an entire codebase (which would overwhelm the context window and produce inconsistent results), you generate a list of files that need the transformation and then loop through them, calling Claude separately for each file with a focused, scoped prompt.
+
+This pattern exploits the fact that most migrations are embarrassingly parallel: updating each file is independent of updating every other file. By giving each file its own Claude invocation with a clean context, you get consistent transformations across the entire codebase without context window degradation.
+
+### When to Use It
+
+Use Fan-Out Migrations for large-scale codebase transformations: API version upgrades, framework migrations, import path changes, pattern replacements that require semantic understanding (not just find-and-replace), adding type annotations to JavaScript files, or migrating from one testing framework to another.
+
+The key requirement is that the transformation for each file can be described in a single, reusable prompt and does not depend on changes to other files. If the migration has inter-file dependencies (changing an interface definition and then updating all implementations), you need to sequence the migration phases rather than fanning out.
+
+### How to Implement It
+
+**Step 1: Generate the file list and test the prompt on a few files**
+
+```bash
+# Find all files that need migration
+grep -rl "oldPattern" src/ > /tmp/migration-files.txt
+
+# Count to understand scale
+wc -l /tmp/migration-files.txt
+# 147 files
+
+# Test on 2-3 representative files first
+head -3 /tmp/migration-files.txt | while read file; do
+  echo "=== Migrating: $file ==="
+  claude -p "Migrate this file from APIv2 to APIv3. Specific changes:
+    - Replace all 'api/v2/' URLs with 'api/v3/'
+    - Update response handling: v3 wraps responses in { data: ..., meta: ... }
+    - Add the required 'X-API-Version: 3' header to all requests
+    - Update error handling: v3 uses RFC 7807 problem details format
+    - Preserve all existing tests, updating assertions for the new response format
+
+    File: $file" \
+    --allowedTools Edit,Read
+done
+```
+
+**Step 2: Review the test results and refine the prompt**
+
+Inspect the changes Claude made to the first 2-3 files. Common issues to look for:
+- Did Claude make changes beyond the migration scope? (Tighten the prompt)
+- Did Claude miss any instances of the old pattern? (Add examples to the prompt)
+- Did Claude handle edge cases correctly? (Add explicit edge case instructions)
+
+**Step 3: Run at scale**
+
+```bash
+#!/bin/bash
+# migrate.sh - Fan-out migration script
+
+MIGRATION_PROMPT="Migrate this file from APIv2 to APIv3. Specific changes:
+- Replace all 'api/v2/' URLs with 'api/v3/'
+- Update response handling: v3 wraps responses in { data: ..., meta: ... }
+- Add the required 'X-API-Version: 3' header to all requests
+- Update error handling: v3 uses RFC 7807 problem details format
+- Preserve all existing tests, updating assertions for the new response format
+- Do NOT make any changes unrelated to the API migration.
+- Do NOT refactor, rename, or restructure code beyond what is required."
+
+SUCCESS=0
+FAIL=0
+TOTAL=$(wc -l < /tmp/migration-files.txt)
+
+while read file; do
+  echo "[$((SUCCESS + FAIL + 1))/$TOTAL] Migrating: $file"
+
+  if claude -p "$MIGRATION_PROMPT
+
+  File: $file" \
+    --allowedTools Edit,Read 2>/dev/null; then
+    SUCCESS=$((SUCCESS + 1))
+  else
+    echo "FAILED: $file" >> /tmp/migration-failures.txt
+    FAIL=$((FAIL + 1))
+  fi
+done < /tmp/migration-files.txt
+
+echo ""
+echo "Migration complete: $SUCCESS succeeded, $FAIL failed out of $TOTAL"
+echo "Failures logged to /tmp/migration-failures.txt"
+```
+
+**Step 4: Validate**
+
+```bash
+# Run the full test suite
+npm test
+
+# Check for any remaining old patterns
+grep -r "api/v2/" src/ && echo "WARNING: Old patterns still present"
+
+# Review the full diff
+git diff --stat
+```
+
+**Tool scoping with `--allowedTools`:**
+
+The `--allowedTools` flag is critical for Fan-Out Migrations. By limiting Claude to `Edit` and `Read`, you prevent it from running commands, creating files, or making changes beyond the specified file. This scoping prevents the most common fan-out failure mode: Claude "helpfully" modifying related files or running build commands between file transformations.
+
+```bash
+# Restrictive scoping for safe migrations
+claude -p "..." --allowedTools Edit,Read
+
+# Slightly more permissive if tests need to run per-file
+claude -p "..." --allowedTools Edit,Read,Bash
+```
+
+### Pros and Cons
+
+**Pros:**
+- Each file gets a clean context, avoiding the degradation that occurs when migrating files sequentially in a single session
+- Scales to hundreds or thousands of files
+- The prompt refinement loop (test on 2-3 files, refine, run at scale) catches prompt issues before they propagate
+- Tool scoping via `--allowedTools` prevents scope creep per file
+- Failed files are logged and can be retried or handled manually
+- Easily parallelizable (run multiple `claude -p` invocations simultaneously)
+
+**Cons:**
+- Each file invocation incurs startup overhead (context loading, CLAUDE.md parsing)
+- Token cost scales linearly with file count (no amortization of shared context)
+- Cannot handle inter-file dependencies within a single fan-out pass
+- Requires a well-tested prompt -- a subtle prompt error will be replicated across all files
+- Not all migrations decompose cleanly into per-file transformations
+
+**Source:** Anthropic (Best Practices for Claude Code).
+
+</div>
+
+<div id="advanced-7">
+
+## 7. Let Claude Interview You
+
+**Confidence: 3/5** -- Documented by Anthropic. Leverages the AskUserQuestion tool for structured requirements gathering.
+
+### What It Is
+
+Instead of writing a detailed specification upfront and handing it to Claude, you reverse the dynamic: ask Claude to interview you about the feature you want to build. Claude asks questions about technical implementation, UI/UX requirements, edge cases, tradeoffs, and constraints. You answer. Claude synthesizes the conversation into a structured specification, which then serves as the input for a fresh implementation session.
+
+This pattern addresses a common failure mode where developers write prompts that are detailed about what they have already thought about but silent on what they have not. An interview surfaces the gaps because Claude asks about things the developer forgot to mention. It is a structured way to front-load the requirements discovery that would otherwise happen through failed implementations and corrections.
+
+### When to Use It
+
+Use the interview pattern for features where you have a general idea of what you want but have not thought through all the details. It is particularly valuable when the feature involves:
+- Multiple stakeholders whose requirements you need to reconcile
+- UI/UX flows with many decision points
+- Integration with external systems whose constraints you need to think through
+- Technical tradeoffs you have not yet resolved
+
+Do not use it for well-understood tasks where you can write a clear specification faster than Claude can interview you about it.
+
+### How to Implement It
+
+**Phase 1: The Interview**
+
+```
+claude
+
+> I want to build a notification preferences system. Instead of me writing
+> a spec, I want you to interview me about it. Ask me questions about:
+> - Technical implementation decisions
+> - User experience and UI flow
+> - Edge cases and error handling
+> - Performance and scaling requirements
+> - Integration with existing systems
+>
+> Ask one category of questions at a time. Wait for my answers before
+> moving to the next category. Use the AskUserQuestion tool when you
+> need clarification on my answers.
+```
+
+Claude will ask structured questions like:
+- "What notification channels do you support? (email, push, in-app, SMS, etc.)"
+- "Should users be able to set preferences per notification type, per channel, or both?"
+- "What happens when you add a new notification type -- what are the defaults?"
+- "How should the migration work from your current boolean email preference?"
+- "What is your expected notification volume? This affects whether you need a queue."
+
+**Phase 2: Specification Synthesis**
+
+After the interview, ask Claude to produce a structured specification:
+
+```
+> Based on our conversation, write a SPEC.md file with the following sections:
+> - Overview (1-2 paragraphs)
+> - Requirements (numbered list with priority: must/should/could)
+> - Technical Architecture (components, data flow, data model)
+> - Edge Cases (enumerated with expected behavior)
+> - Out of Scope (explicitly excluded from this iteration)
+> - Acceptance Criteria (testable conditions for done)
+```
+
+**Phase 3: Fresh Implementation Session**
+
+Start a completely new Claude session (clean context) and provide the specification:
+
+```
+# New session -- clean context
+claude
+
+> Implement the notification preferences system defined in SPEC.md.
+> Follow the specification exactly. If you encounter an ambiguity not
+> covered in the spec, ask me rather than making assumptions.
+```
+
+**CLAUDE.md rule for interview mode:**
+
+```markdown
+# CLAUDE.md
+
+## Interview Protocol
+When asked to interview the developer about a feature:
+- Ask questions in focused categories (technical, UX, edge cases, etc.)
+- Ask follow-up questions when answers are vague or incomplete
+- After the interview, produce SPEC.md in the standard format
+- Flag any contradictions or gaps in the developer's answers
+- Do NOT start implementing during the interview phase
+```
+
+### Pros and Cons
+
+**Pros:**
+- Surfaces requirements the developer forgot or did not think of
+- Produces higher-quality specifications than most developers write unprompted
+- The interview transcript provides a record of decisions and rationale
+- Fresh implementation session avoids context pollution from the interview phase
+- Claude's questions often reveal edge cases and tradeoffs the developer had not considered
+
+**Cons:**
+- Slower than writing a specification directly (if you already know what you want)
+- Interview quality depends on Claude asking the right questions (it may miss domain-specific concerns)
+- The developer must be available for a synchronous interview session (cannot be delegated or run unattended)
+- Produces a specification that is only as good as the developer's answers -- if you do not know the answer to Claude's question, the spec will have gaps
+
+**Source:** Anthropic (Best Practices for Claude Code).
+
+</div>
+
+<div id="advanced-8">
+
+## 8. SPEC -> TASKS -> AGENTS Pipeline
+
+**Confidence: 2/5** -- Documented on Reddit. Single-source, unverified, but architecturally sound and consistent with multi-agent principles.
+
+### What It Is
+
+The SPEC -> TASKS -> AGENTS pipeline is a fully autonomous build system that decomposes a feature specification into discrete, dependency-ordered tasks and executes them through specialized agents with minimal human intervention. It uses Claude's web interface for deep architectural thinking (leveraging extended thinking capabilities) and Claude Code purely as a code execution engine.
+
+The pipeline is built around a set of structured markdown files and a shell script orchestrator that together define, sequence, and execute multi-agent work.
+
+### When to Use It
+
+This pipeline is designed for building complete features or small applications from scratch, where the full scope can be specified upfront and decomposed into independent or sequentially-dependent tasks. It is most valuable when you want to maximize throughput on a well-understood problem and are willing to invest upfront time in specification and task decomposition.
+
+Do not use this for exploratory work, incremental improvements, or tasks where requirements are evolving. The pipeline assumes stable requirements and rewards thorough upfront specification.
+
+### How to Implement It
+
+**Artifact 1: SPEC.md**
+
+The specification defines the full scope of the feature. This is typically written with the help of Claude's web interface, using extended thinking for architectural decisions.
+
+```markdown
+# SPEC.md - User Dashboard Feature
+
+## Overview
+A real-time user dashboard displaying account stats, recent activity,
+and notification feed with WebSocket updates.
+
+## Requirements
+1. MUST: Dashboard loads in under 2 seconds on 3G connection
+2. MUST: Real-time notification updates via WebSocket
+3. MUST: Responsive layout (mobile-first)
+4. SHOULD: Offline support with service worker caching
+5. COULD: Customizable widget layout
+
+## Technical Decisions
+- Framework: React with server components for initial load
+- State management: React Query for server state, Zustand for UI state
+- WebSocket: Socket.io with polling fallback
+- API: REST endpoints with pagination
+
+## Data Model
+[Detailed schema definitions...]
+
+## API Contracts
+[Endpoint definitions with request/response shapes...]
+```
+
+**Artifact 2: TASKS.md**
+
+Tasks are decomposed from the spec with explicit dependency declarations, parallelism safety flags, file scope restrictions, and definitions of done.
+
+```markdown
+# TASKS.md
+
+| ID | Name | Description | Dependencies | Parallel Safe | Files Permitted | Definition of Done |
+|----|------|-------------|-------------|---------------|-----------------|-------------------|
+| T1 | Database schema | Create migration and models | None | Yes | src/db/*, prisma/* | Migration runs, models typed |
+| T2 | API endpoints | REST endpoints for dashboard data | T1 | Yes | src/routes/dashboard.*, src/services/* | All endpoints return correct data, tests pass |
+| T3 | WebSocket server | Socket.io setup with auth | T1 | Yes | src/websocket/*, src/middleware/ws-auth.* | Connection test passes, auth verified |
+| T4 | Dashboard UI | React components for dashboard | T2, T3 | No | src/components/dashboard/*, src/hooks/* | Renders with mock data, Storybook stories |
+| T5 | Integration tests | End-to-end tests | T4 | No | tests/e2e/dashboard.* | All user flows tested, CI green |
+```
+
+**Artifact 3: AGENTS/ directory**
+
+Each task gets a dedicated prompt file containing the full context the agent needs (see [Subagent Definition Examples](/templates/agents-examples/) for templates you can adapt).
+
+```
+agents/
+  T1-database-schema.md
+  T2-api-endpoints.md
+  T3-websocket-server.md
+  T4-dashboard-ui.md
+  T5-integration-tests.md
+```
+
+Example agent file:
+
+```markdown
+# agents/T2-api-endpoints.md
+
+## Role
+You are implementing the REST API endpoints for the user dashboard.
+
+## Context
+- Database schema has been created (see prisma/schema.prisma)
+- Follow existing API patterns in src/routes/
+
+## Task
+Implement these endpoints:
+- GET /api/dashboard/stats - user account statistics
+- GET /api/dashboard/activity - paginated recent activity
+- GET /api/dashboard/notifications - notification feed with cursor pagination
+
+## Constraints
+- Only modify files in: src/routes/dashboard.*, src/services/*
+- Use the existing authentication middleware
+- Follow error handling patterns in src/middleware/error-handler.ts
+- Write tests in tests/unit/dashboard-api.test.ts
+
+## Definition of Done
+- All endpoints return correct data shapes (see SPEC.md API Contracts)
+- Pagination works correctly with cursor-based navigation
+- Error cases return appropriate HTTP status codes
+- All tests pass
+
+## Handoff
+When complete, write agents/HANDOFF-T2.md with:
+- Endpoints implemented and their paths
+- Any deviations from the spec (with justification)
+- Known limitations or follow-up items
+```
+
+**Artifact 4: ORCHESTRATE.sh**
+
+The orchestrator reads TASKS.md, respects dependency ordering, runs parallel-safe tasks concurrently, and handles handoffs between tasks.
+
+```bash
+#!/bin/bash
+# ORCHESTRATE.sh - Multi-agent task orchestrator
+
+set -e
+
+PROJECT_DIR=$(pwd)
+AGENTS_DIR="$PROJECT_DIR/agents"
+
+run_task() {
+  local task_id=$1
+  local task_file="$AGENTS_DIR/${task_id}-*.md"
+
+  echo "[$(date +%H:%M:%S)] Starting $task_id"
+
+  # Create a worktree for this task
+  local branch="agent/${task_id}"
+  git checkout -b "$branch" 2>/dev/null || git checkout "$branch"
+
+  # Run the agent with scoped permissions
+  claude -p "$(cat $task_file)
+
+  Project spec: $(cat SPEC.md)
+
+  Previous handoffs:
+  $(cat agents/HANDOFF-*.md 2>/dev/null || echo 'None yet - you are the first task.')" \
+    --allowedTools Edit,Read,Bash,Write
+
+  echo "[$(date +%H:%M:%S)] Completed $task_id"
+}
+
+# Phase 1: Independent tasks (T1) -- no dependencies
+echo "=== Phase 1: Foundation ==="
+run_task "T1"
+
+# Phase 2: Tasks depending on T1 (parallel-safe)
+echo "=== Phase 2: Parallel Implementation ==="
+run_task "T2" &
+run_task "T3" &
+wait
+
+# Phase 3: Tasks depending on T2 and T3
+echo "=== Phase 3: UI Integration ==="
+run_task "T4"
+
+# Phase 4: Final integration
+echo "=== Phase 4: Testing ==="
+run_task "T5"
+
+echo "=== Pipeline Complete ==="
+```
+
+**Artifact 5: HANDOFF.md files**
+
+Each agent produces a handoff file when it completes, documenting what it did, any deviations from the spec, and information the next agent needs.
+
+```markdown
+# agents/HANDOFF-T2.md
+
+## Completed By: T2 (API Endpoints)
+## Status: Complete
+
+## What Was Done
+- Implemented GET /api/dashboard/stats
+- Implemented GET /api/dashboard/activity (cursor pagination)
+- Implemented GET /api/dashboard/notifications (cursor pagination)
+
+## Deviations from Spec
+- Added rate limiting to /stats endpoint (10 req/min) -- not in spec
+  but consistent with other API endpoints in the codebase
+
+## For Downstream Tasks
+- Activity endpoint returns items sorted by created_at DESC
+- Notification endpoint includes an `unread_count` field in the meta object
+- All endpoints require Bearer token authentication
+```
+
+**Artifact 6: BLOCKERS.md**
+
+If an agent encounters ambiguity it cannot resolve, it writes to BLOCKERS.md and halts rather than making assumptions.
+
+```markdown
+# BLOCKERS.md
+
+## T3: WebSocket Server
+**Blocker:** SPEC.md says "Socket.io with polling fallback" but the
+existing codebase uses raw WebSocket via the `ws` package. Should I:
+a) Use Socket.io as specified (adds a new dependency, different pattern)
+b) Use the existing `ws` package (consistent with codebase, but no
+   automatic polling fallback)
+
+**Waiting for:** Human decision
+**Impact:** T4 (Dashboard UI) depends on the WebSocket implementation choice
+```
+
+### Pros and Cons
+
+**Pros:**
+- Maximum throughput for well-specified features (parallel execution of independent tasks)
+- Explicit dependency ordering prevents integration disasters
+- Handoff files create a paper trail of decisions and deviations
+- Blockers file prevents silent assumptions -- agents halt instead of guessing
+- File-scoping per task prevents agents from stepping on each other's work
+- Can be extended with CI integration for automated verification between phases
+
+**Cons:**
+- Massive upfront investment in specification and task decomposition
+- The orchestration script is fragile and may need customization per project
+- Assumes stable requirements -- any mid-build requirement change ripples through all artifacts
+- Single-source pattern (Reddit) with no published data on success rates
+- Handoff files add coordination overhead that partially offsets parallelism gains
+- Debugging failures in a multi-agent pipeline is significantly harder than debugging a single session
+
+**Source:** Reddit (Multi-Agent Orchestration Prompt).
+
+</div>
+
+<div id="advanced-9">
+
+## 9. Scheduled Autonomous Agents
+
+**Confidence: 3/5** -- Documented by okhlopkov and Anthropic. Promoted from experimental to supported: Anthropic shipped official Routines in Claude Code Week 16 (April 2026), making scheduled agents a first-class feature.
+
+### What It Is
+
+Scheduled Autonomous Agents use cron-like scheduling to run Claude Code tasks at predetermined times without human initiation. Instead of a developer opening Claude Code and typing a prompt, the agent runs on a schedule, performs its task, and produces output (a pull request, a report, a notification) that the developer reviews later.
+
+This transforms Claude Code from an interactive tool into an automated team member that handles recurring maintenance, monitoring, and housekeeping tasks. The developer's role shifts from "driving" the agent to "reviewing" the agent's autonomous output.
+
+**April 2026 Update:** Anthropic shipped official Routines support in Week 16, making scheduled agents a first-class Claude Code feature. The `/schedule` command and the cron-based approach described below both work, but Routines is now the recommended path for most use cases. Use Routines for tasks that fit within a single Claude Code session; reach for cron plus `claude -p` when you need to chain external tools or run Claude in a larger shell pipeline.
+
+### When to Use It
+
+Scheduled agents are valuable for recurring tasks that follow a predictable pattern: triaging error reports, reviewing performance metrics, updating dependencies, running code quality audits, generating weekly reports, or checking for security vulnerabilities. The common thread is tasks that are important enough to do regularly but routine enough that they do not require real-time human judgment.
+
+Do not use scheduled agents for tasks that require nuanced decision-making, architectural changes, or modifications to production-critical code without human review. The output of a scheduled agent should always be a proposal (a PR, a report, a recommendation) rather than a direct action.
+
+### How to Implement It
+
+**Using Claude Code's `/schedule` command:**
+
+```
+# Schedule a weekly performance audit
+/schedule "Every Monday at 9 AM, query the Sentry dashboard for the
+top 5 worst-performing endpoints from the past week. For each:
+1. Identify the root cause (N+1 query, missing index, unnecessary
+   serialization, etc.)
+2. Implement a fix
+3. Write a test that verifies the performance improvement
+4. Open a GitHub PR with the fix and a description of the performance
+   impact."
+```
+
+**Using cron with `claude -p`:**
+
+```bash
+# crontab entry: Monday at 9 AM
+0 9 * * 1 /path/to/performance-audit.sh
+```
+
+```bash
+#!/bin/bash
+# performance-audit.sh
+
+# Query Sentry for worst-performing endpoints
+SENTRY_DATA=$(curl -s -H "Authorization: Bearer $SENTRY_TOKEN" \
+  "https://sentry.io/api/0/projects/myorg/myproject/issues/?query=is:unresolved&sort=freq")
+
+# Feed to Claude for analysis and fix
+cd /path/to/project
+claude -p "Here are the top performance issues from Sentry this week:
+
+$SENTRY_DATA
+
+For the top 3 issues:
+1. Analyze the root cause by examining the relevant code
+2. Implement a fix
+3. Write a test verifying the improvement
+4. Create a git branch and commit the changes
+
+After fixing all issues, create a summary of what was fixed." \
+  --allowedTools Edit,Read,Bash,Write
+
+# Create PR (if changes were made)
+if [ -n "$(git status --porcelain)" ]; then
+  BRANCH="auto/perf-fixes-$(date +%Y%m%d)"
+  git checkout -b "$BRANCH"
+  git add -A
+  git commit -m "fix: automated performance improvements $(date +%Y-%m-%d)"
+  git push origin "$BRANCH"
+  gh pr create \
+    --title "Automated Performance Fixes - $(date +%Y-%m-%d)" \
+    --body "Weekly automated performance audit. Review changes carefully before merging." \
+    --reviewer your-team
+fi
+```
+
+**Using `/loop` for recurring monitoring:**
+
+```
+# Inside a Claude Code session
+/loop 30m "Check the CI dashboard for any failing builds on main.
+If any builds are failing:
+1. Identify the failing test(s)
+2. Read the test file and the source code it tests
+3. Determine if the failure is a flaky test or a real regression
+4. If flaky: add a retry mechanism or stabilize the test
+5. If regression: diagnose the root cause and suggest a fix
+6. Report findings as a comment on the relevant commit"
+```
+
+**Dependency monitoring agent:**
+
+```bash
+#!/bin/bash
+# dependency-check.sh - Runs weekly
+
+cd /path/to/project
+
+claude -p "Check for outdated dependencies in this project.
+For each outdated package:
+1. Check the changelog for breaking changes between our version and latest
+2. If the update is safe (patch or minor with no breaking changes):
+   - Update the dependency
+   - Run the test suite
+   - If tests pass, stage the change
+3. If the update has breaking changes:
+   - Document what would need to change in DEPENDENCY-UPDATES.md
+   - Do NOT apply the update
+
+Create a single PR with all safe updates and a summary of breaking updates
+that need manual attention." \
+  --allowedTools Edit,Read,Bash,Write
+```
+
+### Pros and Cons
+
+**Pros:**
+- Automates recurring maintenance tasks that are important but often neglected
+- Shifts the developer from "doing" to "reviewing," which is more efficient for routine work
+- Catches issues (performance regressions, dependency vulnerabilities, flaky tests) earlier than manual processes
+- Can run outside business hours, having fixes ready for review when the team starts work
+- Produces consistent output because the same prompt runs every time
+
+**Cons:**
+- Requires extremely well-specified prompts (there is no human to clarify ambiguity at execution time)
+- Output must always be a proposal (PR, report) rather than a direct action -- autonomous agents should not push to production
+- Token costs accumulate on a schedule regardless of whether there is useful work to do
+- Error handling is difficult -- if the agent fails silently, you may not notice for days
+- The agent operates without session context, so it cannot learn from feedback on previous runs (each execution is independent)
+- Security implications of running agents with repository write access on a schedule must be carefully considered
+
+**Sources:** okhlopkov (Claude Code Setup After 4 Months), Anthropic (Best Practices for Claude Code).
+
+</div>
+
+<div id="advanced-10">
+
+## 10. Skills for Domain Knowledge
+
+**Confidence: 4/5** -- Documented by Anthropic, okhlopkov, and shanraisshan. Well-supported by Claude Code's architecture.
+
+### What It Is
+
+Skills are reusable, domain-specific instruction files stored in `.claude/skills/` that Claude Code loads on demand when invoked by name (see [Skill File Examples](/templates/skills-examples/) for ready-to-use skill templates). Unlike CLAUDE.md (which loads into every session and competes for context window space), skills load only when explicitly called, keeping the base context lean while making specialized knowledge available when needed.
+
+A skill is a focused instruction file -- typically around 200 lines -- that contains everything Claude needs to perform a specific category of task: the workflow steps, the relevant file patterns to look at, the common gotchas for that domain, templates for the output, and any tools or commands to use. Skills function as reusable "playbooks" that encode the team's accumulated knowledge about how to handle specific types of work.
+
+### When to Use It
+
+Use skills whenever you have a recurring task type that benefits from consistent, detailed instructions that would bloat your CLAUDE.md if included permanently. Good candidates include: fixing bugs from issue trackers, writing specific types of tests, performing code reviews, creating new components from templates, running deployment procedures, and handling common refactoring patterns.
+
+Skills are particularly valuable for teams where multiple developers use Claude Code and need consistent approaches to common tasks. Instead of each developer independently figuring out how to handle a GitHub issue or create a new API endpoint, the skill encodes the team's standard approach.
+
+### How to Implement It
+
+**Skill file structure:**
+
+```
+.claude/
+  skills/
+    fix-issue.md
+    new-api-endpoint.md
+    code-review.md
+    refactor-component.md
+    write-migration.md
+```
+
+**Example skill: fix-issue**
+
+````markdown
+# .claude/skills/fix-issue.md
+
+## Skill: Fix GitHub Issue
+
+### Trigger
+Invoke with: /fix-issue ISSUE_NUMBER
+
+### Workflow
+
+1. **Read the issue**
+   - Fetch the GitHub issue using `gh issue view ISSUE_NUMBER`
+   - Parse: title, description, labels, any linked PRs or issues
+   - Identify: is this a bug report, feature request, or improvement?
+
+2. **Understand the context**
+   - Search the codebase for files related to the issue
+   - Read the relevant source files and their tests
+   - Check git blame for recent changes to the affected area
+   - Look for related issues or PRs that might provide context
+
+3. **Plan the fix**
+   - Describe the root cause (for bugs) or the change needed
+   - List the files that need to change
+   - Identify potential side effects or risks
+   - Present the plan and get approval before implementing
+
+4. **Implement the fix**
+   - Make the minimum change needed to resolve the issue
+   - Follow existing code patterns in the affected files
+   - Do NOT refactor or improve unrelated code
+
+5. **Write tests**
+   - Add a test that would have caught the bug (for bug fixes)
+   - Add tests covering the new behavior (for features)
+   - Run the full test suite to check for regressions
+
+6. **Create the PR**
+   - Branch name: fix/ISSUE_NUMBER-short-description
+   - Commit message: "fix: description (closes #ISSUE_NUMBER)"
+   - PR description includes:
+     - Link to the issue
+     - Root cause analysis
+     - What was changed and why
+     - Test plan
+
+### Gotchas
+- Always check if there is an existing PR for this issue before starting
+- If the issue is vague, ask for clarification rather than guessing
+- If the fix requires changes to more than 5 files, re-evaluate scope
+- Run `npm run lint` before committing -- the CI will reject unlinted code
+
+### Template: PR Description
+
+    ## Fixes #ISSUE_NUMBER
+
+    ### Root Cause
+    One paragraph explaining why the bug existed.
+
+    ### Changes
+    - File 1: what changed and why
+    - File 2: what changed and why
+
+    ### Test Plan
+    - [ ] New test: test name - verifies what
+    - [ ] Existing tests pass
+    - [ ] Manual verification: steps
+````
+
+**Example skill: new-api-endpoint**
+
+````markdown
+# .claude/skills/new-api-endpoint.md
+
+## Skill: Create New API Endpoint
+
+### Trigger
+Invoke with: /new-api-endpoint RESOURCE_NAME
+
+### Workflow
+
+1. **Define the endpoint**
+   - Determine REST resource path: /api/RESOURCE_NAME
+   - Identify CRUD operations needed
+   - Define request/response schemas
+
+2. **Create files** (follow existing patterns in src/routes/)
+   - Route file: src/routes/RESOURCE_NAME.ts
+   - Service file: src/services/RESOURCE_NAME.ts
+   - Types file: src/types/RESOURCE_NAME.ts
+   - Test file: tests/unit/RESOURCE_NAME.test.ts
+
+3. **Implement in order**
+   - Types first (request/response shapes)
+   - Service layer (business logic)
+   - Route handlers (HTTP layer)
+   - Register routes in src/routes/index.ts
+
+4. **Standard patterns** (MUST follow)
+   - Use zod for request validation
+   - Use the Result pattern for service returns (no thrown errors)
+   - Wrap all route handlers in asyncHandler()
+   - Use the standard error response format from src/middleware/error-handler.ts
+   - Add OpenAPI annotations using @hono/zod-openapi
+
+5. **Tests**
+   - Unit tests for service layer
+   - Integration tests for route handlers
+   - At minimum: happy path, validation errors, not found, unauthorized
+
+### File Templates
+
+#### Route Handler Template
+
+    import { Hono } from 'hono'
+    import { zValidator } from '@hono/zod-validator'
+    import { ResourceService } from '../services/resource'
+    import { CreateResourceSchema, UpdateResourceSchema } from '../types/resource'
+
+    const app = new Hono()
+
+    app.get('/', async (c) => {
+      const result = await ResourceService.list()
+      return result.match({
+        ok: (data) => c.json({ data }),
+        err: (error) => c.json({ error: error.message }, error.status)
+      })
+    })
+
+    // ... additional handlers
+
+    export default app
+````
+
+**Example skill: code-review**
+
+````markdown
+# .claude/skills/code-review.md
+
+## Skill: Code Review
+
+### Trigger
+Invoke with: /code-review BRANCH_NAME
+
+### Workflow
+
+1. **Get the diff**
+   - Run: git diff main...BRANCH_NAME (or specified branch)
+   - Get list of changed files with: git diff --name-only main...BRANCH_NAME
+
+2. **Review each file** for:
+   - **Correctness:** Logic errors, missed edge cases, off-by-one errors
+   - **Security:** Input validation, auth checks, SQL injection, XSS
+   - **Performance:** N+1 queries, unnecessary allocations, missing indexes
+   - **Maintainability:** Clear naming, appropriate abstractions, documentation
+   - **Testing:** Are the changes tested? Are edge cases covered?
+
+3. **Do NOT flag:**
+   - Style preferences (let the linter handle it)
+   - Minor naming suggestions unless genuinely confusing
+   - "I would have done it differently" without a concrete improvement
+
+4. **Output format**
+   For each finding:
+   - File and line number
+   - Severity: CRITICAL / WARNING / SUGGESTION
+   - Description of the issue
+   - Suggested fix (code snippet if applicable)
+
+### Severity Definitions
+- **CRITICAL:** Will cause bugs, data loss, security issues, or outages
+- **WARNING:** Potential issue that may cause problems under certain conditions
+- **SUGGESTION:** Improvement that is not urgent but would improve code quality
+````
+
+**Invoking skills:**
+
+Skills are invoked as slash commands within a Claude Code session:
+
+```
+claude
+
+> /fix-issue 1234
+> /new-api-endpoint payments
+> /code-review feature/dashboard
+```
+
+**CLAUDE.md reference for skills:**
+
+Keep your CLAUDE.md lean by referencing skills rather than embedding their content:
+
+```markdown
+# CLAUDE.md
+
+## Available Skills
+- /fix-issue NUMBER - Full workflow for fixing a GitHub issue
+- /new-api-endpoint NAME - Create a new REST API endpoint with standard patterns
+- /code-review [branch] - Review changes on a branch
+- /write-migration DESCRIPTION - Create a database migration
+- /refactor-component PATH - Refactor a React component following our patterns
+
+## Core Rules (keep this section short)
+- Always run tests before completing a task
+- Use Plan Mode for tasks touching 3+ files
+- Follow existing patterns in the codebase
+```
+
+This approach keeps CLAUDE.md under 60-100 lines while making hundreds of lines of domain-specific instructions available on demand. The core rules that apply to every session stay in CLAUDE.md; the specialized workflows live in skills and load only when needed.
+
+### Pros and Cons
+
+**Pros:**
+- Keeps CLAUDE.md lean (solving the instruction-following degradation problem documented in [Failure Modes](/research/failure-modes))
+- Skills load on demand, so they do not consume context window space unless invoked
+- Encodes team knowledge in a reusable, consistent format that all developers share
+- Approximately 200 lines per skill provides enough space for detailed workflows, templates, and gotchas
+- Skills can be version-controlled and reviewed alongside code
+- New team members get the team's accumulated wisdom about how to handle common tasks
+
+**Cons:**
+- Requires upfront investment to write and maintain skills
+- Skills must be updated when codebase patterns change (stale skills produce stale patterns)
+- The developer must know which skill to invoke -- there is no automatic skill selection
+- Skills that are too long suffer the same instruction-following degradation as an over-long CLAUDE.md
+- Not all tasks fit neatly into a skill workflow -- some tasks are genuinely novel each time
+
+**Sources:** Anthropic (Best Practices for Claude Code), okhlopkov (Claude Code Setup After 4 Months), shanraisshan (claude-code-best-practice).
+
+</div>
+
+<div id="advanced-11">
+
+## 11. Auto Mode for Supervised Autonomy
+
+**Confidence: 4/5** -- Official Anthropic engineering blog with detailed performance data and threat model documentation.
+
+### What It Is
+
+Auto mode is a permission system that sits between manual approval and the blanket `--dangerously-skip-permissions` flag. It uses a two-stage AI classifier built on Sonnet 4.6 to evaluate each action before execution. The first stage is a fast single-token filter biased toward blocking. The second stage triggers only for flagged actions and applies chain-of-thought reasoning to reduce false positives.
+
+The classifier sees only user messages and tool calls -- Claude's own text and tool outputs are intentionally stripped from the classifier's input to prevent the agent from "talking" the classifier into approving dangerous actions.
+
+### The Threat Model
+
+Auto mode blocks actions across four categories:
+
+- **Destroy or Exfiltrate**: force-pushes, mass deletion, sending internal data externally
+- **Degrade Security**: disabling logging, installing persistence, modifying permissions
+- **Cross Trust Boundaries**: running external code, scanning credential stores, posting to unspecified services
+- **Bypass Review/Affect Others**: direct main pushes, production deploys, modifying shared resources
+
+### Performance Numbers
+
+The system was evaluated on three datasets. On real production traffic (10K samples), the full pipeline achieves a 0.4% false positive rate. On real overeager actions (52 samples), the false negative rate is 17% -- meaning roughly one in six genuinely dangerous actions slips through. On synthetic exfiltration attacks (1K samples), the false negative rate drops to 5.7%.
+
+The 17% false-negative rate is the key number to internalize. Auto mode is a meaningful safety improvement over no permissions, but it is not a substitute for understanding what your agents are doing.
+
+### Configuration
+
+Three configurable slots let you tune auto mode for your environment:
+
+1. **Environment**: define which domains, buckets, and orgs are internal vs. external
+2. **Block Rules**: 20+ default rules covering the four threat categories
+3. **Allow Exceptions**: narrow carve-outs like installing declared dependencies or pushing to working branches
+
+Access the defaults with `claude auto-mode defaults`.
+
+### When to Use It
+
+Auto mode is the right choice when approval overhead is slowing you down but you are not comfortable with zero guardrails. It works well for routine development tasks, feature implementation, and test writing where most actions are safe reads and in-project edits. It is not appropriate for high-stakes infrastructure work where the 17% residual risk is unacceptable.
+
+**Sources:** Anthropic ([Claude Code Auto Mode](https://www.anthropic.com/engineering/claude-code-auto-mode)).
+
+</div>
+
+<div id="advanced-12">
+
+## 12. Prompt Caching Discipline
+
+**Confidence: 4/5** -- Documented across community sources with consistent quantitative data. Confirmed by Anthropic's pricing documentation.
+
+### What It Is
+
+Prompt caching stores the computational work for unchanged content at the beginning of API calls, serving it at 10% of the normal input token cost on subsequent requests. Every API call in a Claude Code session includes tool definitions, system prompt, CLAUDE.md files, and conversation history -- all of which are identical between consecutive calls. A session that maintains its cache achieves dramatically lower costs and faster response times than one that repeatedly breaks it.
+
+### The Numbers
+
+Well-optimized active sessions achieve approximately 90% cache hit rates. A 20-turn session with 100K tokens of stable context saves 84% in input costs through caching versus no caching. Batching related work in one session is 3.8x cheaper than doing the same work across five separate sessions, because the first session pays the cache write cost once while all subsequent turns benefit from cache reads.
+
+Cache TTL varies by plan: Max plan subscribers get 1-hour TTL, while Pro and API users get 5-minute TTL. The timer resets with each cache hit during active work.
+
+### Anti-Patterns That Destroy Your Cache
+
+Several common actions invalidate the prompt cache and force a full rebuild:
+
+- **Switching models mid-session**: caches are model-specific. Opus and Sonnet cannot share cached content. Switching from one to the other throws away the entire cache.
+- **Using /rewind**: breaks the cache on all content after the rewind point, forcing a rebuild for the remaining conversation.
+- **Installing MCP servers or plugins mid-session**: rebuilds tool definitions at the start of the prompt, which invalidates all downstream caches.
+- **Loading large context "just in case"**: you pay cache-read costs on irrelevant tokens for every remaining turn in the session.
+
+### How to Maximize Cache Hits
+
+Structure your CLAUDE.md with static content at the top and dynamic content at the bottom. The cache works by matching content from the beginning of the prompt forward -- any change in the middle invalidates everything after it.
+
+Run `/compact` every 30-45 minutes or between major task phases. Sessions that let context grow unchecked see token costs per turn climb from ~2,000 tokens to 8,000+ tokens. Compacting drops that back down, a 75% reduction at consistent quality.
+
+Set `max_turns: 10` and `timeout_minutes: 15` in your settings to prevent runaway agent loops that rapidly consume budgets without making progress.
+
+**Sources:** kitaekatt ([Mastering Cache Hits in Claude Code](https://dev.to/kitaekatt/mastering-cache-hits-in-claude-code-5648)), 0xmega ([Claude Code Is Eating Your Budget](https://medium.com/@0xmega/claude-code-is-eating-your-budget-7-fixes-that-cut-costs-without-killing-output-f8dbb3b8a04d)), Anthropic (Manage Costs Effectively).
+
+</div>
+
+<div id="advanced-13">
+
+## 13. Spec-Driven Development
+
+**Confidence: 4/5** -- Multiple independent sources document the workflow with consistent results. Case study provides concrete metrics.
+
+### What It Is
+
+Spec-driven development separates planning from execution through four sequential phases. Instead of jumping into code, you create specification documents that define what you are building, how you will build it, and what steps you will take. Only after specs are reviewed do you move into implementation. The approach turns vague requirements into structured, dependency-aware task lists that Claude can execute with minimal ambiguity.
+
+### The Four Phases
+
+**Phase 1: Parallel Research.** Spawn multiple subagents simultaneously, each investigating a different aspect of the problem. Five agents might research database patterns, sync strategies, storage approaches, architecture, and existing implementations. They converge their findings into a consolidated report.
+
+**Phase 2: Specification Creation.** Research outputs become a comprehensive technical specification document in markdown. This spec serves as the single source of truth: architecture analysis, migration plans, implementation checklists, and technology selection rationale. The document persists across sessions.
+
+**Phase 3: Interview Refinement.** Before implementation, Claude uses `AskUserQuestion` to surface ambiguities and design decisions. This clarifies requirements around data migration, conflict resolution, and architectural preferences before a single line of code is written.
+
+**Phase 4: Task Delegation.** The main agent orchestrates implementation by creating discrete tasks for subagents. Each task gets a fresh context window, implements a specific component, commits atomically, and returns. Dependencies between tasks are tracked in `.claude/tasks/`.
+
+### Concrete Results
+
+From a documented SQLite-to-IndexedDB migration:
+
+- **Duration**: approximately 45 minutes
+- **Output**: 14 atomic commits across 15+ files
+- **Tasks completed**: all 14 tasks in dependency order
+- **Context efficiency**: main orchestrator used only 71% of available tokens
+
+The spec acts as a recovery point. If a session encounters errors, reopening it with the pinned specification allows immediate context restoration without re-doing the planning work.
+
+### Why It Works
+
+Each task isolated into its own context window prevents context pollution and agent amnesia. The main session maintains orchestration and state while focused subagents handle implementation. Acceptance criteria in the spec can be traced to specific lines in the PR diff, catching semantic gaps that lint and type-check miss.
+
+**Sources:** alexop.dev ([Spec-Driven Development with Claude Code in Action](https://alexop.dev/posts/spec-driven-development-claude-code-in-action/)), Hacker News ([Spec-Driven Development Discussion](https://news.ycombinator.com/item?id=46970829)), Anthropic ([Advanced Patterns Webinar](https://www.anthropic.com/webinars/claude-code-advanced-patterns)).
+
+</div>
+
+<div id="advanced-14">
+
+## 14. Git Workflow Discipline
+
+**Confidence: 4/5** -- Documented by builtbyzac.com, cybernerdie's six-month field report, and Anthropic's best practices guide. Multiple independent practitioners converged on the same habits.
+
+### What It Is
+
+Git Workflow Discipline is a set of four habits that prevent the most common ways Claude Code breaks version control hygiene: diverging history, opaque commits, invisible diffs that accumulate across sessions, and PRs that reviewers cannot evaluate without asking questions. Each habit addresses a specific failure mode that emerges when Claude Code's speed outpaces the review process.
+
+The habits are: always use feature branches, enforce Conventional Commits format in CLAUDE.md, require atomic commits per logical change, and run `git diff main` before every push.
+
+### Why It Matters
+
+When Claude Code works fast, the human review window shrinks. A session that produces 14 commits in 45 minutes gives you less than 3 minutes per commit. Without workflow discipline, you lose track of what changed, why it changed, and whether the changes are logically coherent. The git log becomes noise instead of a record.
+
+The problem compounds across sessions. Practitioners working with Claude Code over months document a consistent failure mode: context gaps between sessions caused Claude to re-examine the codebase and make changes that looked correct in isolation but conflicted with decisions from earlier sessions. Atomic commits with meaningful messages made those conflicts visible. Vague commits like "various fixes" hid them until they surfaced as bugs.
+
+### How to Implement It
+
+**Habit 1: Feature branches always**
+
+Every task Claude Code works on starts from a fresh branch off main. No exceptions. Put this in CLAUDE.md:
+
+```markdown
+# CLAUDE.md
+
+## Git Protocol
+- Always start from a feature branch: `git checkout -b feat/short-description`
+- Never commit directly to main
+- Branch naming: feat/, fix/, refactor/, docs/
+```
+
+This is a safety mechanism as much as a convention. If Claude goes off-track on a feature branch, you discard it. If it commits to main, you have a messier problem.
+
+**Habit 2: Conventional Commits in CLAUDE.md**
+
+Specify the commit format explicitly. Claude follows it when instructed, and ignores it when not. Add this to CLAUDE.md:
+
+```markdown
+## Commit Format
+Use Conventional Commits format:
+- feat: a new feature
+- fix: a bug fix
+- docs: documentation only
+- refactor: code change that is not a fix or feature
+- test: adding or correcting tests
+- chore: build, CI, config changes
+
+Format: `type(optional-scope): description`
+Example: `fix(auth): handle expired token in refresh flow`
+
+Each commit represents one logical change. Do not bundle unrelated changes.
+```
+
+**Habit 3: Atomic commits**
+
+One logical change per commit. Not one file per commit -- a single logical change often touches multiple files. Not one session per commit -- large sessions should produce several commits. Tell Claude explicitly:
+
+```
+Commit each logical change separately as you complete it.
+Do not accumulate changes and commit at the end.
+After each complete unit of work, run:
+  git add [specific files changed]
+  git commit -m "type: description"
+```
+
+**Habit 4: Pre-push git diff review**
+
+Before pushing any branch, run `git diff main...HEAD` and review the full diff. This is the human checkpoint. Claude writes fast; this is where you verify that what was written matches what you intended.
+
+```bash
+# Before every push
+git diff main...HEAD          # Review all changes
+git log --oneline main..HEAD  # Check commit history
+# Only then:
+git push origin branch-name
+```
+
+The diff review catches scope creep: Claude adding "small improvements" outside the task boundary, refactoring code it should have left alone, or touching shared files like package.json in unexpected ways.
+
+### Structured PR Descriptions
+
+A structured PR description serves as the handoff document that lets a reviewer understand the change without asking questions. A useful template:
+
+```markdown
+## What
+One paragraph: what changed and why.
+
+## How
+Key implementation decisions, especially non-obvious ones.
+
+## Test Plan
+- [ ] What was tested
+- [ ] How to verify manually if needed
+
+## Scope
+Files changed and why each was touched.
+```
+
+Ask Claude to fill this out as part of the PR creation step. Since Claude has full context on what it changed, it writes accurate PR descriptions faster than most humans would.
+
+### Pros and Cons
+
+**Pros:**
+- Feature branches contain the blast radius if something goes wrong
+- Conventional Commits make `git log` scannable and enable changelog automation
+- Atomic commits let you bisect problems and revert specific changes without disrupting unrelated work
+- Pre-push diff review keeps the human in the loop before changes reach shared history
+- Structured PR descriptions reduce review back-and-forth
+
+**Cons:**
+- Requires explicit CLAUDE.md configuration -- Claude does not adopt these habits without instructions
+- Atomic commits require Claude to pause and commit more frequently, adding session overhead
+- Pre-push review is a manual step that developers skip under time pressure
+- Conventional Commits are only useful if the team checks them (meaningless in a solo project where nobody reads the log)
+
+**Sources:** builtbyzac.com (Git Workflow for Claude Code Users), cybernerdie (Six Months With Claude Code), Anthropic (Best Practices for Claude Code).
+
+</div>
+
+## Advanced Patterns Reference
+
+| # | Pattern | Confidence | Primary Benefit | Key Prerequisite |
+|---|---------|-----------|-----------------|------------------|
+| 1 | Writer/Reviewer | 5/5 | Catches bugs self-review misses | Two sessions, clear review criteria |
+| 2 | Throw-Away Draft | 3/5 | Discovers requirements through implementation | Discipline to discard first draft |
+| 3 | Multi-Model Review | 2/5 | Intellectual diversity in review | Access to multiple model CLIs |
+| 4 | Voice-Driven Development | 2/5 | Richer context than typed prompts | Voice transcription tooling |
+| 5 | The Factory Model | 3/5 | Structured multi-agent throughput | Decomposable, independent tasks |
+| 6 | Fan-Out Migrations | 3/5 | Consistent large-scale transformations | Per-file migration prompt |
+| 7 | Claude Interviews You | 3/5 | Surfaces requirements gaps | Synchronous availability for Q&A |
+| 8 | SPEC -> TASKS -> AGENTS | 3/5 | Maximum autonomous throughput | Thorough upfront specification |
+| 9 | Scheduled Autonomous Agents | 3/5 | Automates recurring maintenance | Well-specified, repeatable tasks |
+| 10 | Skills for Domain Knowledge | 4/5 | Lean CLAUDE.md with on-demand depth | Investment in skill authoring |
+| 11 | Auto Mode | 4/5 | Supervised autonomy without manual approval | Understanding of threat model |
+| 12 | Prompt Caching Discipline | 4/5 | 84% input cost savings, faster responses | Session structure awareness |
+| 13 | Spec-Driven Development | 4/5 | Structured multi-agent delivery | Investment in specification |
+| 14 | Git Workflow Discipline | 4/5 | Clean history, visible diffs, contained blast radius | CLAUDE.md commit format rules |
+
+These patterns represent the current frontier of Claude Code usage. The higher-confidence patterns (Writer/Reviewer, Skills, Auto Mode, Prompt Caching, Spec-Driven Development, Git Workflow Discipline) are likely to become standard practices. The lower-confidence patterns (Multi-Model Review) are more experimental -- they may prove transformative or they may be superseded by better approaches as tooling matures. Scheduled Agents moved from the experimental tier to supported practice when Anthropic shipped official Routines in April 2026. What they share is a common insight: the most effective use of Claude Code is not typing better prompts into a single session, but designing systems and workflows that leverage Claude as a component in a larger architecture.

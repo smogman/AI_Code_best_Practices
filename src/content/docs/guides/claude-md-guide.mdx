@@ -1,0 +1,440 @@
+---
+title: Writing an Effective CLAUDE.md
+description: A comprehensive guide to crafting CLAUDE.md files that actually improve Claude Code's performance
+---
+
+CLAUDE.md is the single highest-leverage configuration point in your Claude Code setup. It is the file Claude reads at the start of every session to understand your project, your conventions, and your expectations. A well-written CLAUDE.md transforms a generic AI assistant into a project-aware collaborator. A poorly written one wastes context, dilutes attention, and can actively degrade output quality.
+
+This guide covers how to write one that works -- drawing on patterns from Boris Cherny (Claude Code's creator), Anthropic's official documentation, HumanLayer's framework analysis, and production experience from teams shipping real software with Claude Code. For a ready-to-use starter file, see the [CLAUDE.md Template](/templates/claude-md-template/).
+
+import ContentPanels from '../../../components/ContentPanels';
+
+<ContentPanels client:load items={[
+  { id: "cmd-framework", title: "The WHY / WHAT / HOW Framework", description: "Structure your CLAUDE.md around three questions: why the project exists, what the tech stack is, and how development works.", date: "2026-04-11", icon: "🏗️" },
+  { id: "cmd-size", title: "Size Guidelines", description: "Under 300 lines max, ideally 60-100. Boris Cherny's ~100 lines outperforms 800-line configs. Instruction-following degrades linearly.", date: "2026-04-11", icon: "📏" },
+  { id: "cmd-include", title: "What to Include", description: "Bash commands Claude can't guess, code style that differs from defaults, testing instructions, architecture decisions, and common gotchas.", date: "2026-04-11", icon: "✅" },
+  { id: "cmd-exclude", title: "What NOT to Include", description: "Standard conventions, detailed API docs, frequently-changing info, file-by-file descriptions, and self-evident practices.", date: "2026-04-11", icon: "❌" },
+  { id: "cmd-disclosure", title: "Progressive Disclosure", description: "Link to detail files instead of inlining everything. Keep CLAUDE.md lean with @import pointing to agent_docs/ or .claude/skills/.", date: "2026-04-11", icon: "📂" },
+  { id: "cmd-hierarchy", title: "Hierarchical Placement", description: "Global ~/.claude/CLAUDE.md, project root ./CLAUDE.md, personal ./CLAUDE.local.md, and parent/child directories for monorepos.", date: "2026-04-11", icon: "📁" },
+  { id: "cmd-emphasis", title: "Emphasis Techniques", description: "Use IMPORTANT and YOU MUST to improve adherence on critical rules. Place key instructions at the start and end of the file.", date: "2026-04-11", icon: "⚡" },
+  { id: "cmd-maintenance", title: "Maintenance Practices", description: "Review when things go wrong, prune regularly, test changes by observing behavior. Treat it like code — check into git.", date: "2026-04-11", icon: "🔧" },
+  { id: "cmd-compliance", title: "The 80% Compliance Reality", description: "CLAUDE.md is advisory — about 80% compliance. For must-happen actions, use hooks instead (100% deterministic).", date: "2026-04-11", icon: "⚖️" },
+  { id: "cmd-example", title: "Complete Annotated Example", description: "A full ~65-line CLAUDE.md demonstrating best practices: stack, commands, architecture, conventions, gotchas, and git workflow.", date: "2026-04-11", icon: "📋" },
+]} accentColor="#34d399" />
+
+<div id="cmd-framework">
+
+## The WHY / WHAT / HOW Framework
+
+HumanLayer's analysis identified a three-part structure that consistently produces effective CLAUDE.md files. The framework works because it mirrors how a competent human collaborator would want to be briefed on a new project.
+
+**WHY** -- What is this project and why does it exist? One to three sentences of context. This is not documentation for humans; it is orientation for Claude so it understands the purpose behind the code it is about to modify.
+
+```markdown
+# Project: Acme Billing Service
+
+Internal billing service that calculates usage-based charges for our SaaS platform.
+Runs as a standalone Hono API deployed to Cloudflare Workers. Accuracy is critical --
+billing errors directly affect revenue and customer trust.
+```
+
+**WHAT** -- What is the tech stack, what are the key commands, and what does the structure look like? This section answers the questions Claude cannot guess by reading code alone: the commands to build, test, and lint; the directory layout; the key architectural decisions.
+
+```markdown
+## Stack
+- Runtime: Cloudflare Workers (Hono framework)
+- Database: Turso (libSQL) via Drizzle ORM
+- Testing: Vitest
+- Package manager: pnpm
+
+## Commands
+- Test: pnpm test
+- Single test: pnpm test -- -t "test name"
+- Lint: pnpm lint
+- Type check: pnpm tsc --noEmit
+- Dev server: pnpm dev
+```
+
+**HOW** -- How does this team work? What conventions differ from the defaults Claude would assume? What are the non-obvious rules?
+
+```markdown
+## Conventions
+- Use named exports only (no default exports)
+- Error handling: use the Result<T, E> type from src/lib/result.ts, not try/catch
+- All monetary values are stored as integers (cents), never floats
+- Database queries go through repository classes in src/repositories/, never raw Drizzle calls
+```
+
+</div>
+
+<div id="cmd-size">
+
+## Size Guidelines
+
+Boris Cherny, the creator of Claude Code, uses a CLAUDE.md that is approximately 100 lines long. HumanLayer recommends ideally under 60 lines, never over 300. These numbers are not arbitrary.
+
+Claude Code's system prompt already contains roughly 50 built-in instructions. Every line you add to CLAUDE.md competes with those instructions and with the actual task at hand for the model's attention. Instruction-following degrades roughly linearly with instruction count -- more instructions means lower compliance with each individual instruction (see [Token and Cost Management](/research/cost-and-context/) for more on context window economics).
+
+The practical targets:
+
+| Length | Assessment |
+|---|---|
+| Under 60 lines | Ideal. Every line earns its place. |
+| 60-100 lines | Good. This is where Boris Cherny operates. |
+| 100-200 lines | Acceptable if using `@import` for detail. Watch for drift. |
+| 200-300 lines | Warning zone. Consider splitting into sub-files. |
+| Over 300 lines | Too long. Compliance drops. Refactor immediately. |
+
+Think of CLAUDE.md as a command briefing, not a manual. A soldier receiving a single page of critical information will remember more than one receiving a sixty-page document.
+
+</div>
+
+<div id="cmd-include">
+
+## What to Include
+
+Include information that Claude cannot determine on its own by reading the codebase, and that it would get wrong without guidance.
+
+### Bash commands Claude cannot guess
+
+```markdown
+## Commands
+- Test: pnpm test
+- Single test: pnpm test -- -t "test name"
+- Lint: pnpm biome check --write .
+- Deploy staging: ./scripts/deploy.sh staging
+- Database migrations: pnpm drizzle-kit push
+```
+
+These are the highest-value lines in any CLAUDE.md. Claude will run these commands in verification loops, and wrong commands mean failed verification.
+
+### Code style that differs from defaults
+
+```markdown
+## Style
+- Use Biome, not ESLint/Prettier
+- Prefer `interface` over `type` for object shapes
+- Use barrel exports (index.ts) for public module APIs
+- IMPORTANT: Never use `any` type -- use `unknown` and narrow
+```
+
+Only include conventions that differ from what Claude would assume by default. Claude already knows standard TypeScript, Python, or Go conventions. Tell it what is different about your project.
+
+### Testing instructions
+
+```markdown
+## Testing
+- Always run relevant tests after making changes
+- Write tests in the same directory as the source file (co-located)
+- Use test factories from src/test/factories/ -- never construct test data inline
+- Integration tests use the test database (automatically configured in vitest.config.ts)
+```
+
+### Architecture decisions and gotchas
+
+```markdown
+## Architecture
+- src/services/ contains business logic (never import from src/routes/)
+- src/routes/ contains HTTP handlers (thin layer, delegates to services)
+- The billing calculation in src/services/billing.ts is the most sensitive code.
+  Changes require review from the billing team.
+
+## Gotchas
+- User.email is unique but User.name is NOT
+- The webhooks table has no foreign key to users -- this is intentional (async processing)
+- IMPORTANT: Never modify files in src/generated/ -- these are auto-generated from the API schema
+```
+
+### Repo etiquette
+
+```markdown
+## Git
+- Commit messages follow conventional commits (feat:, fix:, chore:)
+- Never force-push to main
+- PRs require passing CI before merge
+```
+
+</div>
+
+<div id="cmd-exclude">
+
+## What NOT to Include
+
+| Exclude | Why |
+|---|---|
+| Standard language conventions | Claude already knows TypeScript/Python/Go conventions. "Use camelCase for variables" adds noise without signal. |
+| Detailed API documentation | Too long. Reference files instead: "See src/lib/stripe.ts for the Stripe client wrapper." |
+| Frequently changing information | CLAUDE.md should be stable. Use code comments for volatile details. |
+| File-by-file descriptions | Claude can read the files. Do not replicate a directory listing with annotations. |
+| Obvious instructions | "Write clean code" and "follow best practices" waste tokens. If Claude needs to be told this, a sentence in CLAUDE.md will not fix it. |
+| Entire configuration examples | If a pattern requires a 30-line example, put it in a file and reference it. |
+
+</div>
+
+<div id="cmd-disclosure">
+
+## Progressive Disclosure with @import
+
+For larger projects, CLAUDE.md should act as a table of contents with brief descriptions, pointing to detailed documentation in separate files. This keeps the root file concise while making deep knowledge available when needed.
+
+### The @import syntax
+
+CLAUDE.md supports importing other files using the `@import` directive:
+
+```markdown
+# CLAUDE.md
+
+## Project Overview
+Acme Billing Service -- usage-based billing for our SaaS platform.
+
+## Commands
+- Test: pnpm test
+- Lint: pnpm lint
+
+## Detailed Documentation
+@docs/architecture.md
+@docs/api-conventions.md
+@docs/testing-guide.md
+```
+
+Each imported file's content becomes available to Claude as part of its context. The import paths are relative to the CLAUDE.md file's location.
+
+### Recommended file organization
+
+```
+project-root/
+  CLAUDE.md                    # Brief overview, key commands, imports
+  agent_docs/
+    architecture.md            # Detailed architecture decisions
+    api-conventions.md         # API design patterns
+    testing-guide.md           # Testing strategy and patterns
+    deployment.md              # Deployment process and environments
+  .claude/
+    skills/
+      fix-issue.md             # Skill for fixing GitHub issues
+      code-review.md           # Skill for reviewing PRs
+```
+
+### Skills as progressive disclosure
+
+The `.claude/skills/` directory provides another form of progressive disclosure. Skills are loaded only when invoked, not on every session start. This makes them ideal for detailed, task-specific instructions that would bloat CLAUDE.md (see [Skills Examples](/templates/skills-examples/) for ready-to-use skill files):
+
+```markdown
+# .claude/skills/fix-issue.md
+
+When fixing an issue:
+1. Read the issue description and all comments
+2. Reproduce the bug by writing a failing test first
+3. Implement the minimum fix that makes the test pass
+4. Run the full test suite to check for regressions
+5. Write a commit message referencing the issue number
+```
+
+</div>
+
+<div id="cmd-hierarchy">
+
+## Hierarchical Placement
+
+CLAUDE.md files form a hierarchy. Claude reads them from most general to most specific, with more specific files taking precedence on conflicting instructions.
+
+### The hierarchy
+
+| File | Scope | Checked into git? | Purpose |
+|---|---|---|---|
+| `~/.claude/CLAUDE.md` | Global (all projects) | No | Personal preferences that apply everywhere: editor style, communication preferences, language |
+| `./CLAUDE.md` | Project root | Yes | Team-shared project configuration. The primary file. |
+| `./CLAUDE.local.md` | Project root (personal) | No (gitignored) | Individual overrides: local paths, personal API keys, experimental flags |
+| `./src/api/CLAUDE.md` | Subdirectory | Yes | Module-specific instructions that only apply when working in that directory |
+
+### Example global CLAUDE.md
+
+```markdown
+# ~/.claude/CLAUDE.md
+
+## Personal Preferences
+- Use concise commit messages (one line, under 72 chars)
+- When explaining code, be brief -- I'm a senior engineer
+- Prefer functional patterns over class-based OOP
+```
+
+### Example local CLAUDE.md
+
+```markdown
+# CLAUDE.local.md (gitignored)
+
+## Local Environment
+- Database URL: postgresql://localhost:5432/acme_dev
+- The staging API is at https://staging-api.internal.acme.co
+- My test user credentials: test@acme.co / localdev123
+```
+
+### Subdirectory CLAUDE.md for large monorepos
+
+```markdown
+# src/billing/CLAUDE.md
+
+## Billing Module
+This module handles all usage calculation and invoice generation.
+- All monetary values are integers (cents)
+- Use the Money type from src/billing/types.ts for all amounts
+- IMPORTANT: Changes to the calculation engine require the billing-accuracy test suite:
+  pnpm test -- --project billing-accuracy
+```
+
+</div>
+
+<div id="cmd-emphasis">
+
+## Emphasis Techniques
+
+Not all instructions carry equal weight. When an instruction is critical, use emphasis markers that Claude is trained to respect:
+
+```markdown
+# Regular instruction
+- Use named exports for all public APIs
+
+# Emphasized instruction
+- IMPORTANT: Never modify files in src/generated/ -- these are auto-generated
+
+# Strongly emphasized instruction
+- YOU MUST run the billing-accuracy test suite before committing changes to
+  src/billing/calculator.ts. Billing bugs directly affect revenue.
+```
+
+Testing by practitioners confirms that "IMPORTANT" and "YOU MUST" improve adherence for critical instructions. Use them sparingly -- if everything is important, nothing is. Reserve emphasis for two to four rules that truly cannot be broken.
+
+</div>
+
+<div id="cmd-maintenance">
+
+## Maintenance Practices
+
+A CLAUDE.md file is not a write-once artifact. It requires ongoing maintenance to remain effective.
+
+**Review when things go wrong.** When Claude makes a mistake that a CLAUDE.md instruction should have prevented, check: is the instruction present? Is it clear? Is it buried among too many other instructions? Each mistake is a signal about what needs to be added, clarified, or promoted in priority.
+
+**Prune regularly.** Every quarter (or more often for fast-moving projects), read through your CLAUDE.md and ask of each line: "Has this prevented a real problem in the last month?" Lines that have not earned their keep should be removed. A shorter, tighter CLAUDE.md with high signal-to-noise ratio outperforms a comprehensive one with low signal density.
+
+**Check it into git.** CLAUDE.md is a shared team artifact. It should be version-controlled, reviewed in PRs, and treated with the same care as your CI configuration. When someone adds a new instruction, the team should understand why.
+
+**Use CLAUDE.local.md for personal overrides.** Keep personal preferences, local paths, and experimental instructions in CLAUDE.local.md (which should be gitignored). This prevents your personal workflow from polluting the team configuration.
+
+</div>
+
+<div id="cmd-compliance">
+
+## The 80% Compliance Reality
+
+CLAUDE.md instructions are advisory, not deterministic. Anthropic's own documentation and community testing confirm that CLAUDE.md achieves approximately 80% compliance -- meaning Claude follows the instructions about four out of five times.
+
+This is fine for style preferences and workflow guidance. It is not fine for rules that must never be broken.
+
+For rules requiring 100% compliance, use [hooks](/templates/hooks-examples/) instead:
+
+```json
+// .claude/settings.json
+{
+  "hooks": {
+    "pre-commit": [
+      {
+        "command": "node scripts/check-no-generated-files.js",
+        "description": "Prevent commits to generated files"
+      }
+    ]
+  }
+}
+```
+
+Hooks execute as code, not as suggestions. They achieve 100% compliance because Claude cannot bypass them. The recommended strategy is:
+
+- **CLAUDE.md** for guidance, conventions, and context (80% compliance is acceptable)
+- **Hooks** for rules that must never be broken (100% compliance guaranteed)
+
+</div>
+
+<div id="cmd-example">
+
+## Complete Annotated Example
+
+Below is a complete CLAUDE.md demonstrating good structure. It is 65 lines long, uses the WHY/WHAT/HOW framework, includes emphasis markers appropriately, and uses progressive disclosure for details.
+
+```markdown
+# Acme Billing Service
+
+Usage-based billing API for the Acme SaaS platform. Calculates charges based on
+metered usage events and generates invoices. Accuracy is critical -- billing errors
+directly impact revenue and customer trust.
+
+## Stack
+- Hono on Cloudflare Workers
+- Turso (libSQL) via Drizzle ORM
+- Vitest for testing
+- pnpm for package management
+
+## Commands
+- Test: pnpm test
+- Single test: pnpm test -- -t "test name"
+- Lint: pnpm biome check --write .
+- Type check: pnpm tsc --noEmit
+- Dev server: pnpm dev
+- DB migrations: pnpm drizzle-kit push
+
+## Architecture
+- src/routes/     -- HTTP handlers (thin layer, delegates to services)
+- src/services/   -- Business logic (never import from routes)
+- src/repos/      -- Database access (all queries go through here)
+- src/lib/        -- Shared utilities, types, Result type
+- src/generated/  -- Auto-generated API types (DO NOT EDIT)
+
+## Conventions
+- Named exports only (no default exports)
+- Error handling: use Result<T, E> from src/lib/result.ts, not try/catch
+- All monetary values are integers (cents), never floats
+- Use the Money type from src/lib/money.ts for all financial amounts
+- Prefer interface over type for object shapes
+- Co-locate test files next to source (e.g., calculator.test.ts)
+- Use test factories from src/test/factories/ for test data
+
+## Gotchas
+- User.email is unique but User.name is NOT unique
+- The webhooks table has no FK to users -- intentional for async processing
+- Rate limits are per-workspace, not per-user
+- IMPORTANT: Never modify files in src/generated/ -- run `pnpm generate` instead
+
+## Critical Rules
+- YOU MUST run `pnpm test` after any changes to src/services/billing/
+- YOU MUST use the Money type for all financial calculations -- never raw numbers
+- IMPORTANT: The billing calculator has a dedicated accuracy test suite.
+  Run it with: pnpm test -- --project billing-accuracy
+
+## Git
+- Conventional commits (feat:, fix:, chore:, docs:)
+- PRs require passing CI
+- Never force-push to main
+
+## Detailed Docs
+@agent_docs/architecture.md
+@agent_docs/api-conventions.md
+@agent_docs/testing-patterns.md
+```
+
+This example earns every line. The project description provides orientation. The commands tell Claude exactly what to run. The architecture section uses the shortest possible format (path + one-line description). The conventions section includes only rules that differ from defaults. The gotchas section flags landmines Claude would otherwise step on. The critical rules section uses emphasis for the two or three rules that truly cannot be broken. And the detailed docs section uses progressive disclosure for everything that does not fit in the main file.
+
+</div>
+
+---
+
+## Quick Reference
+
+| Principle | Guideline |
+|---|---|
+| Target length | 60-100 lines (max 300) |
+| Structure | WHY / WHAT / HOW framework |
+| Include | Commands, non-default conventions, architecture, gotchas |
+| Exclude | Standard conventions, API docs, obvious instructions |
+| Emphasis | IMPORTANT, YOU MUST -- use sparingly (2-4 rules) |
+| Details | Use @import and .claude/skills/ for progressive disclosure |
+| Compliance | ~80% for CLAUDE.md, 100% for [hooks](/templates/hooks-examples/) |
+| Maintenance | Review on failures, prune quarterly, version control |
+| Personal | CLAUDE.local.md for individual overrides (gitignored) |

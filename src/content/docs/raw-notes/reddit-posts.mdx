@@ -1,0 +1,117 @@
+---
+title: Reddit Posts & Community Notes
+description: Original Reddit posts and community discussions that sparked this research project
+---
+
+import ContentPanels from '../../../components/ContentPanels';
+
+<ContentPanels client:load items={[
+  { id: "reddit-500k", title: "500k+ Lines in 90 Days", description: "A developer's scalable approach: monorepo, modular routing, popular stacks, SKILL files, DB MCP, TDD, worktrees, and vibe reviewing.", icon: "🚀", date: "2026-04-11" },
+  { id: "reddit-orchestration", title: "Multi-Agent Orchestration Prompt", description: "A structured pipeline: SPEC.md → TASKS.md → AGENTS/ → ORCHESTRATE.sh. Uses Claude Web for thinking, CC for coding.", icon: "🔧", date: "2026-04-11" },
+  { id: "reddit-blog", title: "Referenced Blog Post", description: "AIQuest: One Year with Claude Code — 15 projects, 4 machines, one arXiv paper.", icon: "📰", date: "2026-04-11" }
+]} accentColor="#f87171" />
+
+These are the original posts and comments that kicked off this research. They're preserved verbatim as primary sources. Our research pages synthesize these with 18+ additional sources.
+
+<div id="reddit-500k">
+
+## Post 1: "I've written 500k+ lines of code with Claude Code in 90 days"
+
+> **Source:** Reddit
+>
+> Here's how I did it scalably:
+>
+> **Use a monorepo** (crucial for context management)
+>
+> **Use modular routing** to map frontend features to your backend (categorize API routes by their functionality and put them in separate files). This minimizes context pollution
+>
+> **Use a popular stack and popular libraries with older versions** (React, FastAPI, Python, etc). LLMs are less likely to make mistakes when writing code that they've already seen in their training data
+>
+> Once your code is sufficiently modularized, **write SKILL files** explaining how to implement each "module" in your architecture. For example, one skill could be dedicated to explaining how to write a modular API route in your codebase
+>
+> Mention in your CLAUDE file to **include comments at the top of every file** it creates explaining concisely what the file does. This helps Claude navigate your codebase more autonomously in fresh sessions
+>
+> **Use an MCP that gives Claude read only access to the database**. This helps it debug autonomously
+>
+> **Spend a few minutes planning** how to implement a feature. Once you're ok with the high level details, let Claude implement it E2E in bypass mode
+>
+> **Use test driven development** where possible. Make sure you add unit tests for every feature that is added and have them run in GitHub on every pull request. I use testcontainers to run tests against a dummy postgres container before every pull request is merged
+>
+> **Run your frontend and backend in tmux** so that Claude can easily tail logs when needed (tell it to do this in your CLAUDE file)
+>
+> Finally, if you're comfortable with all of the above, **use multiple worktrees** and have agents running in parallel. I sometimes use 3-4 worktrees in parallel
+>
+> Above all - don't forget to properly review the code you generate. **Vibe reviewing is a more accurate description** of what you should be doing - not vibe coding. In my experience, it is critical to be aware of the entire codebase at the abstraction of functions. You should at minimum know where every function lives and in which file in your codebase.
+
+### Analysis
+
+This post represents the "full autonomy" end of the spectrum. Key practices that align with broad consensus:
+- Monorepo for context management
+- TDD with CI integration
+- Skills/SKILL files for modular knowledge
+- Read-only database MCP
+- Git worktrees for parallel work
+- "Vibe reviewing" emphasis (review everything, even if you didn't write it)
+
+The more contested elements:
+- "E2E in bypass mode" - many practitioners advocate for more human oversight
+- "500k+ lines in 90 days" - volume claims are hard to verify and don't speak to quality
+
+</div>
+
+<div id="reddit-orchestration">
+
+## Post 2: Multi-Agent Orchestration Prompt
+
+> **Source:** Reddit comment
+>
+> This is my generic agentic project completion prompt which seems to work well at the moment. It will sometimes reach a roadblock. By reading ASSUMPTIONS.md and giving it to Claude web, it will edit it, fixing the problems and asking questions. Give it back to CC and tell it to read ASSUMPTIONS.md then continue. In effect, I'm using Claude Web for the deep thought and CC just as a team of competent coders.
+
+The commenter shared a comprehensive orchestration prompt that generates:
+
+1. **ASSUMPTIONS.md** - Records any ambiguities found in the spec
+2. **TASKS.md** - Task decomposition table with columns: ID, Name, Description, Depends On, Parallel Safe, Files Permitted, Definition of Done
+3. **AGENTS/ directory** - One markdown prompt file per task with: Role, Context to Read, Constraints, Permitted Files, Task, Definition of Done, On Completion (HANDOFF.md)
+4. **ORCHESTRATE.sh** - Runs tasks in dependency order with parallel batching, set -e, BLOCKERS.md checking, model-specific assignments (Opus for planning/review, Sonnet for implementation)
+5. **BUILD.md** - Documentation for the build system
+
+### Key Design Patterns
+
+- **Strict file permissions**: Each agent can only modify files in its "Permitted Files" list
+- **Handoff protocol**: Every completed task writes a HANDOFF.md explaining decisions and state
+- **Blocker escalation**: Agents write to BLOCKERS.md and halt rather than guessing
+- **Model tiering**: Opus for planning and review (where reasoning matters), Sonnet for implementation (where speed matters)
+- **Parallel safety**: Tasks marked parallel-safe only if they touch no shared files
+- **Human-in-the-loop**: Uses Claude Web for strategic thinking, Claude Code for execution
+
+### Analysis
+
+This is the most structured multi-agent approach we encountered. It aligns with Addy Osmani's Factory Model and shares principles with the SPEC-driven development approach. The key innovation is the separation of Claude Web (strategic thinking) from Claude Code (execution) - using each tool for its strength.
+
+Contested elements:
+- Full automation via ORCHESTRATE.sh assumes high confidence in the spec
+- The overhead of generating all these artifacts may not be worth it for smaller features
+- BLOCKERS.md as the only human touchpoint may not catch enough issues
+
+</div>
+
+<div id="reddit-blog">
+
+## Referenced Blog Post
+
+The user also referenced an article from [AIQuest: One Year with Claude Code](https://www.aiquest.info/blog/one-year-with-claude-code-15-projects-4-machines-one-arxiv-paper) covering 15 projects across 4 machines. Unfortunately, the content could not be fetched due to JavaScript rendering requirements, but the title suggests a practitioner with substantial long-term experience across multiple environments.
+
+</div>
+
+## How These Fit Into the Broader Research
+
+| Claim from Reddit | Consensus Level | Where to Read More |
+|---|---|---|
+| Monorepo for context management | Moderate consensus (3/5) | [Consensus Practices](/research/consensus-practices/) |
+| Popular stacks produce fewer errors | Moderate consensus (3/5) | [Consensus Practices](/research/consensus-practices/) |
+| SKILL files for modular knowledge | Strong consensus (4/5) | [Advanced Patterns](/research/advanced-patterns/) |
+| Read-only database MCP | Strong consensus (4/5) | [MCP Configuration](/templates/mcp-config/) |
+| TDD for every feature | Very strong consensus (5/5) | [Consensus Practices](/research/consensus-practices/) |
+| Bypass mode for E2E | Contested | [Contested Practices](/research/contested-practices/) |
+| Multiple worktrees | Strong consensus (4/5) | [Multi-Agent Guide](/guides/multi-agent-guide/) |
+| SPEC -> TASKS -> AGENTS pipeline | Low confidence (2/5) | [Advanced Patterns](/research/advanced-patterns/) |

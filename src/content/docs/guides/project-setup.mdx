@@ -1,0 +1,598 @@
+---
+title: Project Setup Checklist
+description: Step-by-step guide to setting up a new project for optimal Claude Code usage
+---
+
+This checklist walks through every step of configuring a project for effective Claude Code usage. Follow it in order for a new project, or use it as an audit tool for existing projects. Each step includes the why, the how, and a concrete example.
+
+import ContentPanels from '../../../components/ContentPanels';
+
+<ContentPanels client:load items={[
+  { id: "setup-1", title: "Initialize Git Repository", description: "Set up version control as the foundation. Required for worktrees, checkpoints, and team collaboration.", date: "2026-04-11", icon: "1️⃣" },
+  { id: "setup-2", title: "Create CLAUDE.md", description: "Write your project's operating instructions. Start minimal (~30 lines) and grow based on observed mistakes.", date: "2026-04-11", icon: "2️⃣" },
+  { id: "setup-3", title: "Run /init to Analyze", description: "Let Claude examine your codebase and suggest additions. Review and prune the output — never use it verbatim.", date: "2026-04-11", icon: "3️⃣" },
+  { id: "setup-4", title: "Configure Settings", description: "Set up .claude/settings.json with permission modes, model preferences, and output style.", date: "2026-04-11", icon: "4️⃣" },
+  { id: "setup-5", title: "Set Up MCP Servers", description: "Connect external tools via .mcp.json — PostgreSQL (read-only), Sentry, GitHub, and more.", date: "2026-04-11", icon: "5️⃣" },
+  { id: "setup-6", title: "Create Initial Skills", description: "Add reusable workflows to .claude/skills/ — fix-issue, code-review, and project-specific skills.", date: "2026-04-11", icon: "6️⃣" },
+  { id: "setup-7", title: "Configure Hooks", description: "Set up deterministic automation — pre-commit security checks, post-edit linting, test verification.", date: "2026-04-11", icon: "7️⃣" },
+  { id: "setup-8", title: "Install Plugins", description: "Browse the marketplace with /plugin. Install code intelligence and workflow plugins.", date: "2026-04-11", icon: "8️⃣" },
+  { id: "setup-9", title: "Set Up Worktree Tooling", description: "Configure git worktrees for parallel agent development. Optional but powerful for multi-agent work.", date: "2026-04-11", icon: "9️⃣" },
+  { id: "setup-10", title: "Configure Status Line", description: "Set up real-time context monitoring to track token usage, model, and session info.", date: "2026-04-11", icon: "🔟" },
+  { id: "setup-11", title: "Set Up CI Integration", description: "Use claude -p in CI pipelines for automated code review, test generation, and migration tasks.", date: "2026-04-11", icon: "⚙️" },
+  { id: "setup-12", title: "Configure Team Sharing", description: "Commit CLAUDE.md and .mcp.json, gitignore CLAUDE.local.md and credentials. Set up team conventions.", date: "2026-04-11", icon: "👥" },
+]} accentColor="#34d399" />
+
+<div id="setup-1">
+
+## 1. Initialize a Git Repository
+
+Claude Code depends on git for version control, branching, worktrees, and safe experimentation. Without git, Claude cannot create branches for risky changes, you cannot roll back mistakes, and multi-agent workflows are impossible.
+
+```bash
+# If starting a new project
+git init
+git add .
+git commit -m "Initial commit"
+
+# If the project already has git, verify it is clean
+git status
+```
+
+**Why this is first:** Every subsequent step assumes git is available. Claude Code uses git for diffing, branching, worktree creation, and safe rollback. Starting without git means starting without a safety net.
+
+</div>
+
+<div id="setup-2">
+
+## 2. Create CLAUDE.md
+
+Create a CLAUDE.md file in the project root. This is the single highest-leverage configuration step. Start minimal and expand based on experience -- a short, accurate file outperforms a long, comprehensive one.
+
+For detailed guidance, see the [Writing an Effective CLAUDE.md](/guides/claude-md-guide) guide.
+
+For a full ready-to-use file, see the [CLAUDE.md Template](/templates/claude-md-template/).
+
+**Minimal starter template:**
+
+```markdown
+# Project Name
+
+Brief description of what this project does and why it exists.
+
+## Stack
+- Language/Framework: [e.g., TypeScript with Next.js 14]
+- Database: [e.g., PostgreSQL via Prisma]
+- Testing: [e.g., Vitest]
+- Package manager: [e.g., pnpm]
+
+## Commands
+- Install: pnpm install
+- Dev server: pnpm dev
+- Test: pnpm test
+- Single test: pnpm test -- -t "test name"
+- Lint: pnpm lint
+- Type check: pnpm tsc --noEmit
+- Build: pnpm build
+
+## Key Conventions
+- [Convention that differs from defaults, e.g., "Named exports only"]
+- [Another convention, e.g., "Use Result<T,E> for error handling, not try/catch"]
+
+## Gotchas
+- [Non-obvious fact, e.g., "User.email is unique but User.name is NOT"]
+- [Another gotcha, e.g., "Never modify files in src/generated/"]
+```
+
+**Guidelines:**
+
+- Keep it under 100 lines to start. You can always add more.
+- Only include information Claude cannot determine by reading the codebase.
+- Use the WHY/WHAT/HOW framework described in the [CLAUDE.md guide](/guides/claude-md-guide).
+
+</div>
+
+<div id="setup-3">
+
+## 3. Run /init to Analyze the Project
+
+Claude Code's `/init` command scans your codebase and generates a CLAUDE.md based on what it detects: build systems, test frameworks, directory structure, code patterns, and conventions.
+
+```bash
+# In Claude Code
+/init
+```
+
+**IMPORTANT:** Do not accept the output blindly. `/init` provides a solid mechanical foundation (it detects your test runner, build tool, and directory layout), but it cannot capture what matters about your project -- the architectural decisions, the gotchas, the team conventions that differ from defaults.
+
+**After running /init:**
+
+1. Read the generated content carefully
+2. Remove anything Claude already knows (standard language conventions, obvious patterns)
+3. Remove file-by-file descriptions (Claude can read the files itself)
+4. Add the project-specific knowledge only you have: gotchas, critical rules, non-default conventions
+5. Trim to under 100 lines
+
+Research shows that AI-written rules offer no measurable benefit and can reduce task success rates by approximately 3%, while human-curated context gives approximately 4% improvement (see [Consensus Practices](/research/consensus-practices/) for why this matters). Use `/init` as a starting point, but the final CLAUDE.md must be human-curated.
+
+</div>
+
+<div id="setup-4">
+
+## 4. Configure .claude/settings.json
+
+The `.claude/settings.json` file controls Claude Code's behavior for the project: permission modes, model preferences, and output formatting.
+
+```bash
+# Create the .claude directory
+mkdir -p .claude
+```
+
+**Example settings.json:**
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm test*)",
+      "Bash(pnpm lint*)",
+      "Bash(pnpm build*)",
+      "Bash(pnpm tsc*)",
+      "Read",
+      "Write",
+      "Edit"
+    ],
+    "deny": [
+      "Bash(rm -rf*)",
+      "Bash(git push*)",
+      "Bash(pnpm publish*)"
+    ]
+  },
+  "model": "sonnet",
+  "outputStyle": "concise"
+}
+```
+
+**Permission modes explained:**
+
+- **allow**: Commands Claude can run without asking. Include your test, lint, and build commands here so verification loops run without interruption.
+- **deny**: Commands Claude should never run. Include destructive operations and anything that pushes to production.
+
+**Model selection:**
+
+- `"sonnet"` -- Default. Best balance of speed, cost, and quality for most tasks.
+- `"opus"` -- Stronger reasoning. Use for complex architecture decisions, subtle bugs, or critical code. Significantly more expensive.
+
+The "opusplan" strategy: use Opus for planning and Sonnet for implementation. Switch models mid-session based on what the task requires.
+
+</div>
+
+<div id="setup-5">
+
+## 5. Set Up .mcp.json
+
+The Model Context Protocol (MCP) connects Claude Code to external tools and data sources. A `.mcp.json` file in the project root configures which MCP servers are available.
+
+```json
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://readonly_user:password@localhost:5432/myapp_dev"
+      ]
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "sentry": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@sentry/mcp-server"
+      ],
+      "env": {
+        "SENTRY_AUTH_TOKEN": "${SENTRY_AUTH_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+For complete configuration templates for each server, see the [MCP Server Configuration](/templates/mcp-config/) page.
+
+**Recommended MCP servers:**
+
+| Server | Purpose | Setup Note |
+|---|---|---|
+| **postgres** | Query your database directly | IMPORTANT: Use a read-only database user. Claude should never have write access to production data through MCP. |
+| **github** | Read issues, PRs, reviews, and repo metadata | Use a fine-grained PAT with minimal permissions |
+| **sentry** | Read error reports and stack traces | Lets Claude investigate production errors with real data |
+| **filesystem** | Access files outside the project directory | Use sparingly, scope to specific directories |
+
+**Security note:** Never hardcode credentials in `.mcp.json`. Use environment variable references (`${VARIABLE_NAME}`) and store actual values in your shell profile or a `.env` file that is gitignored. The `.mcp.json` file itself can be committed to git because it contains only variable references, not secrets.
+
+</div>
+
+<div id="setup-6">
+
+## 6. Create Initial Skills
+
+Skills are reusable instruction sets stored in `.claude/skills/` that Claude loads when you invoke them. They are ideal for repetitive workflows that require specific, detailed steps.
+
+```bash
+mkdir -p .claude/skills
+```
+
+**Example: fix-issue skill**
+
+```markdown
+<!-- .claude/skills/fix-issue.md -->
+
+# Fix Issue Workflow
+
+When asked to fix a GitHub issue:
+
+1. Read the issue description and all comments using the GitHub MCP server
+2. Identify the root cause by reading the relevant source files
+3. Write a failing test that reproduces the bug
+4. Implement the minimum fix that makes the test pass
+5. Run the full test suite: pnpm test
+6. Run the linter: pnpm lint
+7. Commit with message: fix: <description> (closes #<issue-number>)
+8. If the fix touches the billing module, also run: pnpm test -- --project billing-accuracy
+```
+
+**Example: code-review skill**
+
+```markdown
+<!-- .claude/skills/code-review.md -->
+
+# Code Review Workflow
+
+When asked to review code:
+
+1. Run: git diff main...HEAD
+2. For each changed file, analyze:
+   - Logic correctness (especially edge cases and error handling)
+   - Adherence to project conventions in CLAUDE.md
+   - Security implications (input validation, auth checks, data exposure)
+   - Test coverage for changed behavior
+3. Do NOT comment on style issues -- the linter handles those
+4. Categorize findings:
+   - CRITICAL: Logic errors, security issues, data loss risks
+   - WARNING: Missing edge cases, potential performance issues
+   - NIT: Minor suggestions (include sparingly)
+5. Present findings as a numbered list with file paths and line references
+```
+
+Skills stay out of the main context until invoked, making them free in terms of context overhead during normal work. Store detailed, step-by-step instructions here rather than bloating CLAUDE.md. For more examples, see the [Skills Examples](/templates/skills-examples/) page.
+
+</div>
+
+<div id="setup-7">
+
+## 7. Configure Hooks
+
+Hooks are deterministic automation that runs at specific points in Claude's lifecycle. Unlike CLAUDE.md instructions (which achieve approximately 80% compliance), hooks execute as code and achieve 100% compliance.
+
+Configure hooks in `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "pre-commit": [
+      {
+        "command": "node scripts/check-sensitive-files.js",
+        "description": "Block commits containing sensitive files"
+      },
+      {
+        "command": "pnpm lint --quiet",
+        "description": "Lint before committing"
+      }
+    ],
+    "post-edit": [
+      {
+        "command": "pnpm tsc --noEmit 2>&1 | head -20",
+        "description": "Type-check after edits"
+      }
+    ]
+  }
+}
+```
+
+**Example: sensitive file checker script**
+
+```javascript
+// scripts/check-sensitive-files.js
+const { execSync } = require('child_process');
+
+const staged = execSync('git diff --cached --name-only').toString();
+const sensitive = ['.env', 'credentials.json', '.secret', 'id_rsa'];
+
+const violations = sensitive.filter(f => staged.includes(f));
+if (violations.length > 0) {
+  console.error(`BLOCKED: Attempted to commit sensitive files: ${violations.join(', ')}`);
+  process.exit(1);
+}
+```
+
+**Recommended hooks:**
+
+| Hook Point | Purpose | Example |
+|---|---|---|
+| **pre-commit** | Block sensitive files, enforce lint | `check-sensitive-files.js`, `pnpm lint` |
+| **post-edit** | Fast feedback on type errors | `pnpm tsc --noEmit` |
+| **pre-commit** | Run tests before committing | `pnpm test --bail` |
+
+The key principle: use CLAUDE.md for guidance (conventions, preferences, context) and hooks for enforcement (rules that must never be broken). For more hook examples, see the [Hooks Examples](/templates/hooks-examples/) page.
+
+</div>
+
+<div id="setup-8">
+
+## 8. Install Recommended Plugins
+
+Claude Code's plugin system extends its capabilities with community-built tools. Browse available plugins with the `/plugin` command.
+
+```bash
+# In Claude Code
+/plugin
+```
+
+**Plugins to evaluate:**
+
+- **Code review plugin**: Anthropic's official multi-agent code review system. Achieves under 1% false positive rates at $15-25 per review.
+- **Testing plugins**: Plugins that enhance test generation and coverage analysis.
+- **Framework-specific plugins**: Plugins tailored to your stack (React, Django, Rails, etc.) that understand framework conventions.
+
+**Guidelines for plugins:**
+
+- Start with zero plugins. Add them only when you hit a specific limitation.
+- Evaluate each plugin's context overhead -- plugins that load instructions into every session consume context even when not needed.
+- Prefer plugins that use the skill system (loaded on demand) over those that inject into the system prompt (loaded always).
+
+</div>
+
+<div id="setup-9">
+
+## 9. Set Up Git Worktree Tooling
+
+If you plan to use multi-agent workflows (see the [Multi-Agent Patterns](/guides/multi-agent-guide) guide), set up worktree tooling now.
+
+```bash
+# Add the worktree helper function to your shell profile
+# (~/.bashrc, ~/.zshrc, or equivalent)
+
+w() {
+  local branch="$1"
+  local base="${2:-main}"
+  local repo_name=$(basename "$(git rev-parse --show-toplevel)")
+  local worktree_path="../${repo_name}-${branch}"
+
+  git worktree add -b "$branch" "$worktree_path" "$base"
+  echo "Created worktree at $worktree_path on branch $branch (from $base)"
+  cd "$worktree_path"
+}
+```
+
+**Verify the setup:**
+
+```bash
+# Create a test worktree
+w test-worktree
+
+# Verify it works
+git branch  # Should show test-worktree branch
+ls           # Should show project files
+
+# Clean up
+cd -
+git worktree remove ../your-project-test-worktree
+```
+
+**When to set this up:** If you expect to use 2+ Claude sessions simultaneously for the same project, set up worktrees now. If you are working solo on small tasks, skip this step and revisit when your workflow demands it.
+
+</div>
+
+<div id="setup-10">
+
+## 10. Configure Status Line for Context Monitoring
+
+Claude Code displays a status line showing current context usage. This is your primary tool for avoiding the context degradation cliff (quality drops at ~70% usage, hallucinations increase at ~85%).
+
+The status line is enabled by default, but make sure you are reading it:
+
+```markdown
+# Add to CLAUDE.md as a reminder
+## Context Management
+- Monitor context usage in the status line
+- Use /clear between unrelated tasks
+- If context exceeds 70%, consider clearing or starting a new session
+- At 85%+, quality degrades significantly -- clear and restart
+```
+
+**Additional monitoring:**
+
+- Run `/usage` or `/stats` periodically to check detailed context breakdown
+- Check which files are consuming the most context
+- Use `/clear` aggressively between tasks -- the cost of re-establishing context is trivially small compared to the cost of working in a degraded window
+
+</div>
+
+<div id="setup-11">
+
+## 11. Set Up CI Integration
+
+Claude Code can run in CI pipelines using the `-p` (print/pipe) flag for non-interactive execution. This enables automated code review, test generation, and other Claude-powered CI steps.
+
+```yaml
+# .github/workflows/claude-review.yml
+name: Claude Code Review
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for accurate diffs
+
+      - name: Claude Code Review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude -p "Review the changes in this PR against the main branch.
+            Run: git diff main...HEAD
+            Focus on logic errors, security issues, and missing test coverage.
+            Output findings as a markdown list with severity ratings."
+```
+
+**Common CI use cases:**
+
+```bash
+# Automated code review on PRs
+claude -p "Review the diff between main and HEAD. Flag critical issues only."
+
+# Generate missing tests
+claude -p "Identify functions in the diff that lack test coverage.
+  Generate tests for the three most critical uncovered functions."
+
+# Documentation updates
+claude -p "Check if the changes in this PR require documentation updates.
+  If so, generate the updates."
+
+# Commit message validation
+claude -p "Validate that all commit messages on this branch follow
+  conventional commit format (feat:, fix:, chore:, docs:)."
+```
+
+**Cost control in CI:** CI runs can be expensive if not scoped carefully. Use specific, focused prompts rather than broad "review everything" instructions. Limit the diff scope to changed files only. See [Token and Cost Management](/research/cost-and-context/) for strategies on controlling spend.
+
+</div>
+
+<div id="setup-12">
+
+## 12. Configure Team Sharing
+
+The final step is ensuring your Claude Code configuration is properly shared with the team and that personal/sensitive files stay out of version control.
+
+**Files to commit to git:**
+
+```bash
+git add CLAUDE.md
+git add .claude/settings.json
+git add .claude/skills/
+git add .mcp.json
+git commit -m "chore: add Claude Code project configuration"
+```
+
+**Files to gitignore:**
+
+```gitignore
+# .gitignore additions for Claude Code
+
+# Personal CLAUDE.md overrides
+CLAUDE.local.md
+
+# Local credential files
+.env
+.env.local
+credentials.json
+
+# Claude Code session data
+.claude/todos/
+.claude/statsig/
+```
+
+**What goes where:**
+
+| File | Git Status | Purpose |
+|---|---|---|
+| `CLAUDE.md` | Committed | Shared team configuration |
+| `CLAUDE.local.md` | Gitignored | Personal overrides (local paths, preferences) |
+| `.claude/settings.json` | Committed | Shared permissions, hooks, model config |
+| `.claude/skills/` | Committed | Shared skill definitions |
+| `.mcp.json` | Committed | MCP server config (uses env var references, not secrets) |
+| `.env` | Gitignored | Local environment variables and secrets |
+| `credentials.json` | Gitignored | Any credential files |
+
+**Team onboarding process:**
+
+1. New team member clones the repo (gets CLAUDE.md, settings, skills, MCP config)
+2. They create their own `CLAUDE.local.md` for personal preferences
+3. They set up environment variables referenced in `.mcp.json` (database URLs, API tokens)
+4. They run Claude Code -- the project is immediately configured
+
+</div>
+
+---
+
+## Complete Setup Verification
+
+After completing all steps, verify your setup with this checklist:
+
+```bash
+# 1. Git is initialized and clean
+git status
+
+# 2. CLAUDE.md exists and is under 100 lines
+wc -l CLAUDE.md
+
+# 3. Settings file exists
+cat .claude/settings.json
+
+# 4. MCP servers are configured
+cat .mcp.json
+
+# 5. Skills directory exists with at least one skill
+ls .claude/skills/
+
+# 6. Sensitive files are gitignored
+git check-ignore CLAUDE.local.md .env credentials.json
+
+# 7. Configuration files are tracked
+git ls-files CLAUDE.md .claude/settings.json .mcp.json
+```
+
+Then start Claude Code and run a simple verification:
+
+```
+# In Claude Code
+> Read CLAUDE.md and confirm you understand the project setup.
+> List the test command, lint command, and any critical rules.
+```
+
+If Claude accurately reflects your configuration, the setup is complete.
+
+---
+
+## Quick Reference
+
+| Step | File/Command | Priority |
+|---|---|---|
+| 1. Git init | `git init` | Required |
+| 2. CLAUDE.md | `CLAUDE.md` | Required |
+| 3. /init scan | `/init` in Claude Code | Recommended |
+| 4. Settings | `.claude/settings.json` | Recommended |
+| 5. MCP servers | [`.mcp.json`](/templates/mcp-config/) | Recommended |
+| 6. Skills | [`.claude/skills/*.md`](/templates/skills-examples/) | Recommended |
+| 7. Hooks | [Hooks](/templates/hooks-examples/) in `settings.json` | Recommended |
+| 8. Plugins | `/plugin` in Claude Code | Optional |
+| 9. Worktrees | Shell function | Optional (needed for multi-agent) |
+| 10. Status line | Default enabled | Required (awareness) |
+| 11. CI integration | GitHub Actions / CI config | Optional |
+| 12. Team sharing | `.gitignore` + `git add` | Required for teams |

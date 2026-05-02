@@ -1,0 +1,288 @@
+---
+title: CLAUDE.md Template
+description: A ready-to-use CLAUDE.md starter template incorporating consensus best practices
+---
+
+`CLAUDE.md` is the primary way to give Claude Code persistent context about your project. It lives in your repository root and is automatically read at the start of every conversation. Think of it as a briefing document --- everything Claude needs to know to work effectively in your codebase.
+
+## How to use this template
+
+1. Copy the template below into a file named `CLAUDE.md` at your project root.
+2. Replace placeholder values (marked with `[BRACKETS]`) with your project specifics.
+3. Delete sections that do not apply. A shorter, accurate file beats a long, generic one.
+4. Commit it to version control so every team member and CI run gets the same context.
+
+**Key principles:**
+
+- Keep it under ~120 lines. Claude reads the entire file on every conversation start --- brevity respects the context window (see [Token and Cost Management](/research/cost-and-context/) for why this matters).
+- Focus on things that differ from defaults. Claude already knows standard language idioms; tell it what is *unusual* about your project.
+- Update it as your project evolves. Stale instructions cause more harm than no instructions.
+
+For a deep dive on what to include, what to leave out, and how to structure your file, see the [Writing an Effective CLAUDE.md](/guides/claude-md-guide/) guide.
+
+import ContentPanels from '../../../components/ContentPanels';
+
+<ContentPanels client:load accentColor="#fbbf24" items={[
+  { id: "tpl-full", title: "Full Template (~100 lines)", description: "Complete CLAUDE.md covering stack, commands, code style, architecture, testing, git workflow, and common gotchas.", icon: "📋", date: "2026-04-11" },
+  { id: "tpl-minimal", title: "Minimal Template (~30 lines)", description: "Bare essentials for simple projects — commands, stack, and critical rules only.", icon: "📄", date: "2026-04-11" },
+  { id: "tpl-monorepo", title: "Monorepo Template", description: "Parent + child CLAUDE.md hierarchy for workspaces. Root file for shared config, child files for package-specific context.", icon: "📦", date: "2026-04-11" },
+  { id: "tpl-customize", title: "What to Customize", description: "Guidance on which parts of the template to change for your project vs what to keep as standard.", icon: "✏️", date: "2026-04-11" },
+]} />
+
+<div id="tpl-full">
+
+## Full template (~100 lines)
+
+This version covers all major sections. Remove what you do not need.
+
+````markdown
+# [Project Name]
+
+[One-sentence description of what this project does.]
+
+## Tech Stack
+
+- Language: [e.g., TypeScript 5.4]
+- Framework: [e.g., Next.js 14 (App Router)]
+- Database: [e.g., PostgreSQL 16 via Prisma ORM]
+- Testing: [e.g., Vitest + React Testing Library]
+- Package manager: [e.g., pnpm 9]
+- Node version: [e.g., 22 LTS]
+
+## Key Commands
+
+```bash
+# Install dependencies
+[pnpm install]
+
+# Development server
+[pnpm dev]
+
+# Build for production
+[pnpm build]
+
+# Run all tests
+[pnpm test]
+
+# Run a single test file
+[pnpm test -- path/to/file.test.ts]
+
+# Lint and format
+[pnpm lint]
+[pnpm format]
+
+# Type-check without emitting
+[pnpm tsc --noEmit]
+
+# Database migrations
+[pnpm prisma migrate dev]
+```
+
+## Code Style Rules
+
+These override or supplement default linter/formatter settings:
+
+- Use named exports, not default exports.
+- Prefer `interface` over `type` for object shapes.
+- Error messages must be user-facing strings, not technical dumps.
+- Use `async/await` over `.then()` chains.
+- Maximum function length: ~50 lines. Extract helpers aggressively.
+- Import order: stdlib -> external packages -> internal modules -> relative imports.
+
+## Architecture Overview
+
+```
+src/
+  app/           # Next.js App Router pages and layouts
+  components/    # Shared React components
+  lib/           # Core business logic (framework-agnostic)
+  server/        # Server-only code (API routes, tRPC routers)
+  db/            # Prisma schema, migrations, seed scripts
+  utils/         # Pure utility functions
+```
+
+- **Business logic lives in `src/lib/`**, not in components or API routes.
+- **Components are split**: `components/ui/` for design-system primitives, `components/features/` for domain-specific compositions.
+- **Database access only through `src/db/client.ts`** --- never import Prisma directly elsewhere.
+
+## Testing Conventions
+
+- Every new function in `src/lib/` must have a corresponding test in `src/lib/__tests__/`.
+- Use `describe` / `it` blocks. Test names should read as sentences: `it("returns null when user is not found")`.
+- Mock external services; never hit real APIs in tests.
+- Aim for edge cases over happy-path-only coverage.
+- Snapshot tests are discouraged --- prefer explicit assertions.
+
+## Git Workflow
+
+- Branch names: `[type]/[short-description]` (e.g., `feat/user-auth`, `fix/null-avatar`).
+- Commit messages: imperative mood, 50-char subject line. Body optional for non-trivial changes.
+- Always run `pnpm lint && pnpm test` before committing.
+- PRs require one approval before merge. Squash-merge to main.
+
+## Common Mistakes / Gotchas
+
+- **Do NOT import from `src/server/` in client components.** This pulls server-only code into the browser bundle. (For more gotcha patterns, see [Failure Modes](/research/failure-modes/).)
+- **Always check `session` before accessing user data.** Unauthenticated routes will have `session === null`.
+- **Prisma migrations must be backwards-compatible** in production. Never rename or drop columns without a two-phase migration.
+- **Environment variables**: use `NEXT_PUBLIC_` prefix only for values that are safe to expose to the browser. All secrets go in `.env.local` (never committed).
+- **Date handling**: always use `date-fns` with UTC. Never use `new Date()` without timezone context.
+````
+
+</div>
+
+<div id="tpl-minimal">
+
+## Minimal template (~30 lines)
+
+For smaller projects, personal repos, or when you want to start light and grow:
+
+````markdown
+# [Project Name]
+
+[Brief description.]
+
+## Commands
+
+```bash
+[npm run dev]     # Start dev server
+[npm run build]   # Production build
+[npm test]        # Run tests
+[npm run lint]    # Lint
+```
+
+## Stack
+
+[TypeScript, React, Node.js, SQLite]
+
+## Important Rules
+
+- [List 3-5 rules that differ from standard conventions]
+- [e.g., We use Zustand for state --- not Redux or Context]
+- [e.g., All API responses use the shape \{ data, error, meta \}]
+- [e.g., Never import from `internal/` outside of `src/core/`]
+
+## Structure
+
+- `src/core/` --- business logic
+- `src/api/` --- HTTP handlers
+- `src/ui/` --- React components
+````
+
+</div>
+
+<div id="tpl-monorepo">
+
+## Monorepo template (parent + child)
+
+In monorepos, Claude reads CLAUDE.md files hierarchically. Place a root file for shared context and per-package files for specifics. The [CLAUDE.md guide's hierarchical placement section](/guides/claude-md-guide/#cmd-hierarchy) explains how the hierarchy works in detail.
+
+**Root `CLAUDE.md`** (at repo root):
+
+````markdown
+# [Org] Monorepo
+
+Monorepo managed with [Turborepo / Nx / pnpm workspaces].
+
+## Global Commands
+
+```bash
+pnpm install          # Install all deps (run from root)
+pnpm build            # Build all packages
+pnpm test             # Test all packages
+pnpm lint             # Lint all packages
+```
+
+## Workspace Structure
+
+- `apps/web` --- Next.js frontend
+- `apps/api` --- Express backend
+- `packages/ui` --- Shared component library
+- `packages/config` --- Shared ESLint/TS configs
+- `packages/db` --- Database client and migrations
+
+## Cross-Package Rules
+
+- Shared types live in `packages/types/`. Never duplicate type definitions across packages.
+- All packages use the same TypeScript version (see root `package.json`).
+- Inter-package imports use workspace protocol: `"@org/ui": "workspace:*"`.
+- Changes to `packages/db` require running `pnpm --filter @org/db migrate` before testing.
+````
+
+**Child `apps/web/CLAUDE.md`**:
+
+````markdown
+# Web App
+
+Next.js 14 frontend. Inherits global rules from root CLAUDE.md.
+
+## Commands (run from this directory)
+
+```bash
+pnpm dev        # Dev server on port 3000
+pnpm build      # Production build
+pnpm test       # Run Vitest tests
+```
+
+## Specifics
+
+- Uses App Router (not Pages Router).
+- Auth handled by `@org/auth` package --- see `lib/auth.ts` for session utilities.
+- All data fetching goes through server components or server actions. No `useEffect` fetching.
+- Styling via Tailwind CSS. No CSS modules or styled-components.
+````
+
+**Child `apps/api/CLAUDE.md`**:
+
+````markdown
+# API Server
+
+Express + tRPC backend. Inherits global rules from root CLAUDE.md.
+
+## Commands (run from this directory)
+
+```bash
+pnpm dev        # Dev server on port 4000
+pnpm test       # Run Vitest tests
+pnpm db:migrate # Run Prisma migrations
+```
+
+## Specifics
+
+- All routes defined in `src/routers/`. Each file is a tRPC router.
+- Middleware in `src/middleware/` --- auth, rate-limiting, logging.
+- Database access only through `@org/db` package. Never import Prisma directly.
+- Error handling: throw `TRPCError` with appropriate code. Never return raw exceptions.
+````
+
+</div>
+
+<div id="tpl-customize">
+
+## What to customize vs what to keep
+
+**Always customize** (these are project-specific):
+
+- Project name and description
+- Tech stack and versions
+- Build / test / lint commands
+- Directory structure
+- Code style rules that differ from defaults
+- Common gotchas specific to your codebase
+
+**Keep as-is or lightly adapt** (these are universal good practices):
+
+- The section headings and overall structure
+- The instruction to use named exports (unless you prefer defaults)
+- Testing convention guidelines
+- Git workflow patterns
+- The general principle of listing what is *unusual*, not what is standard
+
+**Remove if not applicable:**
+
+- Monorepo sections for single-package projects
+- Database sections if there is no database
+- Framework-specific rules if using a different framework
+- Any section that would just say "we follow the defaults"
+
+</div>

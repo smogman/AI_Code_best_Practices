@@ -1,0 +1,34 @@
+---
+interface Props {
+  type: 'official' | 'creator' | 'industry' | 'community' | 'experience' | 'aggregator';
+}
+
+const { type } = Astro.props;
+
+const config: Record<string, { label: string; color: string; bg: string }> = {
+  official: { label: 'Official', color: '#166534', bg: '#dcfce7' },
+  creator: { label: 'Creator', color: '#7c2d12', bg: '#ffedd5' },
+  industry: { label: 'Industry', color: '#1e3a5f', bg: '#dbeafe' },
+  community: { label: 'Community', color: '#581c87', bg: '#f3e8ff' },
+  experience: { label: 'Experience', color: '#713f12', bg: '#fef9c3' },
+  aggregator: { label: 'Aggregator', color: '#374151', bg: '#f3f4f6' },
+};
+
+const { label, color, bg } = config[type];
+---
+
+<span class="source-badge" style={`color: ${color}; background-color: ${bg}`}>
+  {label}
+</span>
+
+<style>
+  .source-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+</style>

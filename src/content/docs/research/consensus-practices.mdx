@@ -1,0 +1,798 @@
+---
+title: Consensus Practices
+description: Best practices with broad agreement across 20+ sources - the things nearly everyone agrees on
+---
+
+# Consensus Practices for Claude Code
+
+What follows are the twelve practices that appear repeatedly across more than twenty independent sources -- from Anthropic's own documentation to production war stories from teams shipping hundreds of thousands of lines of AI-assisted code. These are not speculative tips. They are the things nearly everyone who has used Claude Code seriously agrees on.
+
+Each practice is rated on a **confidence scale from 1 to 5**, reflecting how many independent sources corroborate it and how strong the evidence is. A 5/5 means virtually every serious practitioner agrees. A 3/5 means the practice is well-supported but has fewer independent confirmations or applies to narrower scenarios.
+
+import ContentPanels from '../../../components/ContentPanels';
+
+<ContentPanels client:load items={[
+  { id: "practice-1", title: "Context Window Is Your #1 Resource", description: "Performance degrades as context fills. At 70% precision drops, at 85% hallucinations increase, at 90%+ behavior becomes erratic.", confidence: 5, date: "2026-04-11", icon: "🧠" },
+  { id: "practice-2", title: "Give Claude Verification Loops", description: "Include tests, linters, screenshots so Claude can check its own work. The single highest-leverage practice — 2-3x quality improvement.", confidence: 5, date: "2026-04-11", icon: "✅" },
+  { id: "practice-3", title: "Plan Before Coding", description: "Use Plan Mode for non-trivial tasks. Separate exploration from execution. Without planning, 80% accuracy per decision collapses to 1.15% across 20 decisions.", confidence: 5, date: "2026-04-11", icon: "📋" },
+  { id: "practice-4", title: "Keep CLAUDE.md Concise", description: "Boris Cherny's ~100 lines outperforms 800-line configs. Under 300 lines max, ideally 60-100. Instruction-following degrades linearly.", confidence: 5, date: "2026-04-11", icon: "📝" },
+  { id: "practice-5", title: "Test-Driven Development", description: "Have AI write tests first, then minimum code to pass. Tests are objective validators independent of AI assertions. Claude generates 1.75x more logic errors.", confidence: 5, date: "2026-04-11", icon: "🧪" },
+  { id: "practice-6", title: "Be Specific in Prompts", description: "Reference specific files, mention constraints, point to patterns. Vague requests trigger broad scanning; specific requests let Claude work efficiently.", confidence: 5, date: "2026-04-11", icon: "🎯" },
+  { id: "practice-7", title: "Aggressive Session Hygiene", description: "Use /clear between tasks, /compact to summarize, fresh sessions for new work. After 2 failed corrections, clear and rewrite your prompt.", confidence: 4, date: "2026-04-11", icon: "🧹" },
+  { id: "practice-8", title: "Git Worktrees for Parallel Work", description: "Each agent gets an isolated working directory via git worktrees. Shares single repo database, prevents merge conflicts during parallel work.", confidence: 4, date: "2026-04-11", icon: "🌳" },
+  { id: "practice-9", title: "Use Subagents to Protect Context", description: "Delegate research to subagents in separate context windows. They report back summaries, keeping your main conversation clean for implementation.", confidence: 4, date: "2026-04-11", icon: "🤖" },
+  { id: "practice-10", title: "Use Hooks for Must-Happen Actions", description: "CLAUDE.md is advisory (~80% compliance). Hooks are deterministic (100%). Use hooks for formatting, linting, security checks.", confidence: 4, date: "2026-04-11", icon: "🪝" },
+  { id: "practice-11", title: "Use Monorepos for Context Management", description: "Monorepos keep related code accessible in one context. Modular routing maps frontend to backend, minimizing context pollution.", confidence: 3, date: "2026-04-11", icon: "📦" },
+  { id: "practice-12", title: "Use Popular Stacks and Libraries", description: "LLMs make fewer mistakes with code they've seen in training data. Popular frameworks produce more reliable output.", confidence: 3, date: "2026-04-11", icon: "🏗️" },
+]} />
+
+<div id="practice-1">
+
+## 1. Context Window Is Your Number-One Resource
+
+**Confidence: 5/5** | Sources: Anthropic official docs, Boris Cherny, HumanLayer, Sankalp, Anthropic costs guide
+
+### What It Is
+
+Claude Code operates within a finite context window -- the total amount of text (your conversation, file contents, tool outputs, system prompts) that the model can "see" at once. This is not merely a technical limitation. It is the single most important variable determining output quality. Every file Claude reads, every error message it processes, every back-and-forth exchange consumes context. When that context fills up, Claude does not simply stop working -- it degrades gradually, in ways that are difficult to detect until something breaks.
+
+### Why It Works
+
+The degradation curve is not linear -- it is a cliff with warning signs:
+
+> At roughly **70% context capacity**, precision begins to drop. At **85%**, hallucination rates increase measurably. Beyond **90%**, behavior becomes erratic -- Claude may forget instructions from earlier in the conversation, contradict itself, or produce code that ignores constraints you explicitly stated.
+
+This is corroborated by multiple practitioners. Boris Cherny's work at Anthropic emphasizes that context management is foundational to everything else -- without it, no amount of prompt engineering helps. HumanLayer's analysis confirms that instruction-following degrades as context fills, and Anthropic's own cost optimization guide treats context conservation as the primary lever for both quality and cost.
+
+The underlying mechanism is attention. Transformer models distribute attention across the entire context window. As the window fills, each individual piece of information receives proportionally less attention. Instructions from the beginning of a long conversation compete with hundreds of lines of code output, tool results, and error messages for the model's "focus."
+
+### How to Implement It
+
+**Monitor relentlessly.** Use the status line at the bottom of Claude Code, which shows current context usage. Run `/usage` or `/stats` periodically to check where you stand. Treat 70% as a yellow flag and 85% as a red one.
+
+**Use `/clear` aggressively between tasks.** This is the single most important habit. When you finish implementing a feature and move to fixing a bug, clear the context. When you finish debugging and move to writing tests, clear the context. The cost of re-establishing context (a sentence or two of instruction) is trivially small compared to the cost of working in a degraded window.
+
+**Delegate research to subagents.** When Claude needs to read many files to understand a codebase, that research consumes enormous context. Subagents run in their own context windows and return only summaries, keeping your main conversation clean (see [Subagent Definition Examples](/templates/agents-examples/) for ready-to-use configurations).
+
+**Start fresh sessions for new tasks.** Do not treat Claude Code like an ongoing conversation about your entire project. Each task should ideally begin with a fresh session. If your team uses Claude Code throughout the day, this might mean starting new sessions every 30-60 minutes.
+
+### Common Mistakes
+
+| Mistake | Why It Hurts |
+|---|---|
+| Treating context like unlimited memory | Leads to multi-hour sessions where quality silently degrades |
+| Not monitoring context usage | You cannot manage what you do not measure |
+| Asking Claude to "remember" things from earlier | Wastes context on meta-instructions instead of actual work |
+| Pasting entire files when only a function is relevant | Fills context with irrelevant code |
+| Debugging in long loops instead of clearing and restarting | Each failed attempt adds noise that makes the next attempt worse |
+
+</div>
+
+<div id="practice-2">
+
+## 2. Give Claude Verification Loops
+
+**Confidence: 5/5** | Sources: Anthropic, Boris Cherny, Addy Osmani, DEV.to pitfalls, eesel AI
+
+### What It Is
+
+A verification loop is any mechanism that gives Claude objective, automated feedback on whether its output is correct. This includes test suites, linters, type checkers, build systems, screenshot comparison tools, and any other process that produces a pass/fail signal Claude can act on.
+
+### Why It Works
+
+Anthropic identifies verification loops as the **"single highest-leverage practice"** for improving Claude Code output quality. Boris Cherny reports a **2-3x quality improvement** when verification loops are present compared to when they are absent.
+
+The reason is fundamental to how LLMs work. Without external verification, Claude can only evaluate its own output using the same reasoning process that generated it. This creates a closed loop where plausible-looking but incorrect code passes self-review because the same biases that produced the error also prevent detecting it.
+
+> Without verification loops, Claude produces plausible-looking but broken code. The code reads well. The variable names make sense. The structure looks right. But it does not work -- and Claude cannot tell, because it is evaluating its own output with the same model that produced the error.
+
+When you provide a verification loop, you break this cycle. Claude writes code, runs the tests, sees "3 tests failed," reads the error messages, and iterates. Each iteration is grounded in objective reality rather than self-assessment.
+
+### How to Implement It
+
+**Tests are the primary verification loop.** If your project has a test suite, tell Claude about it in your CLAUDE.md. Specify the exact command to run tests:
+
+```
+# Testing
+Run tests with: npm test
+Run a single test: npm test -- --grep "test name"
+Always run relevant tests after making changes.
+```
+
+**Linters and type checkers are the secondary loop.** These catch a different class of errors -- structural problems, type mismatches, style violations -- that tests might miss:
+
+```
+# Verification
+After changes, run:
+1. npm run lint
+2. npm run typecheck
+3. npm test
+```
+
+**Build verification catches integration issues.** For compiled languages or projects with build steps, include the build command as a verification step.
+
+**Screenshot tools provide visual verification.** For frontend work, tools that capture screenshots let Claude verify that UI changes look correct, not just that they compile.
+
+**Expected output patterns for scripts.** When Claude writes a data processing script, tell it what the output should look like: "The script should produce a CSV with exactly 3 columns: date, amount, category."
+
+### Common Mistakes
+
+- **No test suite at all.** If your project has no tests, Claude has no verification loop. The first thing to do with a new project is establish even a minimal test suite.
+- **Tests that are too slow.** If running the test suite takes 5 minutes, Claude (and you) will skip verification. Keep the relevant test subset fast.
+- **Not telling Claude which tests to run.** Claude may not know your test runner, your test file naming convention, or how to run a subset. Be explicit.
+- **Treating Claude's "I verified this works" as verification.** Claude's self-assessment is not a verification loop. Only automated, objective checks count.
+
+</div>
+
+<div id="practice-3">
+
+## 3. Plan Before Coding
+
+**Confidence: 5/5** | Sources: Anthropic, Boris Cherny, Addy Osmani, eesel AI, Sankalp
+
+### What It Is
+
+For any non-trivial task, Claude should produce and get approval on a plan before writing any code. Claude Code supports this through **Plan Mode** (toggled with Shift+Tab), which instructs Claude to analyze, reason, and outline an approach without making changes.
+
+### Why It Works
+
+The mathematics of compounding errors makes this practice nearly mandatory. Consider a task that requires 20 sequential decisions (which file to modify, which approach to take, how to handle an edge case, etc.). If Claude makes the correct decision 80% of the time at each step -- which is generous for complex tasks -- the probability of getting all 20 decisions right is:
+
+> **0.8^20 = 1.15%**
+
+That is a 98.85% failure rate for the overall task. Planning collapses these 20 serial decisions into a single reviewed plan. You catch the wrong decisions before any code is written, when correction is cheap rather than expensive.
+
+Boris Cherny's team at Anthropic has formalized this into standard practice: **one Claude instance plans while another reviews the plan.** Only after the plan passes review does implementation begin. This two-agent planning pattern catches architectural mistakes that would be expensive to fix after implementation.
+
+The recommended four-phase workflow is:
+
+1. **Explore** -- Claude reads relevant files and understands the current state
+2. **Plan** -- Claude proposes an approach, identifying files to change, patterns to follow, and edge cases to handle
+3. **Implement** -- Claude executes the approved plan
+4. **Commit** -- Changes are committed with a descriptive message
+
+### How to Implement It
+
+**Use Plan Mode (Shift+Tab) for non-trivial tasks.** When you toggle Plan Mode on, Claude will analyze instead of act. Ask it to propose an approach:
+
+```
+"I need to add pagination to the /api/users endpoint. 
+Go into plan mode and tell me how you'd approach this."
+```
+
+**Review the plan before approving.** Look for: Does it modify the right files? Does it follow existing patterns in the codebase? Does it handle edge cases? Does it account for tests?
+
+**Ask clarifying questions.** If the plan is vague on a point, ask. "How will you handle the case where the page parameter is negative?" Better to catch this now than after 200 lines of code.
+
+**Skip planning for trivial tasks.** Not everything needs a plan. Simple changes -- fixing a typo, adding a log line, renaming a variable -- can go straight to implementation. The threshold is roughly: if the task touches more than one file or requires any design decisions, plan first.
+
+### Common Mistakes
+
+- **Skipping the plan for "medium" tasks.** The tasks most likely to fail are the ones that seem simple but have hidden complexity. When in doubt, plan.
+- **Approving a vague plan.** "I'll update the component to handle the new state" is not a plan. A plan names specific files, specific functions, and specific changes.
+- **Not iterating on the plan.** The first plan is a draft. Push back on parts that seem wrong. Ask for alternatives.
+- **Planning simple tasks.** Adding planning overhead to a one-line change wastes context and time.
+
+</div>
+
+<div id="practice-4">
+
+## 4. Keep CLAUDE.md Concise
+
+**Confidence: 5/5** | Sources: Boris Cherny, HumanLayer, Anthropic, okhlopkov
+
+### What It Is
+
+CLAUDE.md is the project-level configuration file that Claude Code reads at the start of every session. It is your primary mechanism for giving Claude persistent instructions about your project -- coding standards, test commands, architecture decisions, known gotchas. But its effectiveness is inversely related to its length.
+
+### Why It Works
+
+Boris Cherny tested this directly at Anthropic and found that **a roughly 100-line CLAUDE.md consistently outperforms 800-line configurations.** HumanLayer's analysis recommends **ideally under 60 lines, never over 300.** For a step-by-step authoring walkthrough, see the [Writing CLAUDE.md Guide](/guides/claude-md-guide/), and for a starting point, see the [CLAUDE.md Starter Templates](/templates/claude-md-template/).
+
+The mechanism is the same as context window degradation but more acute. Claude Code's system prompt already contains approximately 50 built-in instructions. Every line in CLAUDE.md competes with those instructions and with the actual task at hand for the model's attention. Instruction-following degrades roughly linearly with instruction count -- more instructions means lower compliance with each individual instruction.
+
+> Think of CLAUDE.md not as documentation but as a **command briefing**. A soldier receiving a 60-page briefing before a mission will remember less than one receiving a single page of critical information.
+
+### How to Implement It
+
+**Use the WHY/WHAT/HOW framework:**
+
+- **WHY** -- What is this project? One sentence. "This is a Next.js e-commerce platform using Stripe for payments."
+- **WHAT** -- What should Claude do? Key commands, conventions, constraints. "Run `pnpm test` after changes. Use the repository pattern for data access. Never modify migration files."
+- **HOW** -- How should Claude work? Style preferences that differ from defaults. "Use named exports, not default exports. Prefer `interface` over `type` for object shapes."
+
+**What to include:**
+
+```markdown
+# Project: Acme E-Commerce
+
+Next.js 14 app with Stripe payments and Prisma ORM.
+
+## Commands
+- Test: pnpm test
+- Lint: pnpm lint
+- Build: pnpm build
+- Single test: pnpm test -- --grep "name"
+
+## Architecture
+- src/app/ - Next.js app router pages
+- src/lib/ - Shared utilities and Stripe client
+- src/repositories/ - Data access layer (always use these, never raw Prisma)
+
+## Style
+- Named exports only (no default exports)
+- Zod for all runtime validation
+- Error handling: use Result type from src/lib/result.ts
+
+## Gotchas
+- Stripe webhook handler must verify signatures (see src/app/api/webhooks/stripe)
+- User.email is unique but User.name is NOT
+```
+
+**What NOT to include:**
+
+| Exclude | Why |
+|---|---|
+| Standard language conventions | Claude already knows TypeScript/Python/etc. conventions |
+| Detailed API documentation | Too long; reference files instead with "see src/lib/api.ts" |
+| Things that change frequently | CLAUDE.md should be stable; use comments in code for volatile information |
+| File-by-file descriptions | Claude can read the files itself |
+| Obvious instructions | "Write clean code" and "follow best practices" add noise without signal |
+
+**Use sub-directory CLAUDE.md files** for large projects. A `src/api/CLAUDE.md` can contain API-specific instructions without cluttering the root file.
+
+### Common Mistakes
+
+- **Treating CLAUDE.md as comprehensive documentation.** It is not a README. It is a concise set of operating instructions.
+- **Never updating it.** CLAUDE.md should evolve as your project does. When Claude repeatedly makes the same mistake, add a one-line instruction.
+- **Duplicating what Claude already knows.** You do not need to tell Claude what TypeScript generics are or how React hooks work.
+- **Including examples that are too long.** If an example exceeds 10 lines, put it in a file and reference the file instead.
+
+</div>
+
+<div id="practice-5">
+
+## 5. Test-Driven Development
+
+**Confidence: 5/5** | Sources: Addy Osmani, DEV.to pitfalls, Reddit 500k lines, Anthropic, eesel AI
+
+### What It Is
+
+Test-Driven Development (TDD) with Claude Code means writing tests first, then having Claude write the minimum code to pass those tests. This inverts the typical AI-assisted workflow where you ask Claude to write code and then (maybe) write tests afterward.
+
+### Why It Works
+
+A 2025 ACM study found that **Claude generates 1.75x more logic errors than human programmers** writing the same functionality. This is not a flaw that will be patched -- it is inherent to how LLMs generate code. They produce statistically likely code sequences, which means they produce code that looks correct and follows common patterns but may have subtle logical errors that are invisible on casual review.
+
+TDD addresses this directly:
+
+> Tests are **objective validators independent of AI assertions.** When Claude says "I've implemented the pagination correctly," you have no way to verify that claim without running it. When tests say "PASS: returns correct page of results," "PASS: handles empty page," "FAIL: does not handle negative page numbers," you have objective evidence.
+
+The practice also prevents what Addy Osmani calls the **"trust-then-verify gap"** -- the dangerous period between when Claude produces code and when you discover it does not work. Without TDD, this gap can extend for hours or days. With TDD, it is collapsed to seconds.
+
+### How to Implement It
+
+**Step 1: Write (or have Claude write) tests first.**
+
+```
+"Write tests for a UserService.getPage() method that:
+- Returns the correct page of users (10 per page)
+- Returns an empty array for pages beyond the data
+- Throws InvalidPageError for negative page numbers  
+- Throws InvalidPageError for non-integer page numbers
+DO NOT implement the method yet."
+```
+
+**Step 2: Have Claude implement the minimum code to pass.**
+
+```
+"Now implement UserService.getPage() to pass all the tests you just wrote. 
+Run the tests after implementation."
+```
+
+**Step 3: Iterate on failures.** Claude will run the tests, see which fail, and fix its implementation. This is the verification loop in action.
+
+**Step 4: Refactor with confidence.** Once all tests pass, you can ask Claude to refactor the implementation, knowing the tests will catch any regressions.
+
+For existing codebases without tests, start by having Claude write tests for code that already exists before modifying it. This gives you a safety net for future changes.
+
+### Common Mistakes
+
+- **Writing tests after implementation.** This defeats the purpose. Tests written after the code tend to test what the code does rather than what it should do, encoding bugs as expected behavior.
+- **Having Claude write both tests and implementation in one step.** The tests need to be reviewed and approved before implementation begins. Otherwise Claude may write tests that match its (potentially incorrect) implementation.
+- **Overly broad test descriptions.** "Write tests for the user service" is too vague. Specify the exact behaviors you expect.
+- **Ignoring test quality.** Claude-generated tests can have the same 1.75x logic error rate as Claude-generated code. Review the tests before treating them as ground truth.
+
+</div>
+
+<div id="practice-6">
+
+## 6. Be Specific in Prompts
+
+**Confidence: 5/5** | Sources: Anthropic, eesel AI, Addy Osmani, Builder.io
+
+### What It Is
+
+Specificity in prompts means referencing concrete files, functions, constraints, and patterns rather than describing tasks in abstract terms. This is not merely a "write better prompts" suggestion -- it directly affects how efficiently Claude uses your context window and how accurately it performs tasks.
+
+### Why It Works
+
+When Claude receives a vague prompt, it must scan broadly to understand what you mean. This means reading multiple files, exploring directory structures, and making assumptions -- all of which consume context and introduce opportunities for error. A specific prompt lets Claude go directly to the relevant code with minimal exploration.
+
+**Bad prompt (vague):**
+```
+Fix the bug in the user authentication.
+```
+
+Claude must now figure out: Which files handle authentication? What is the bug? What is the expected behavior? This could require reading 10+ files before it even understands the problem.
+
+**Good prompt (specific):**
+```
+In src/auth/login.ts, the validatePassword() function on line 42 
+returns true for empty strings. Fix it to reject empty passwords 
+and add a test case in src/auth/__tests__/login.test.ts.
+```
+
+Claude reads two files, understands the exact problem, and fixes it. Minimal context consumed, maximal accuracy.
+
+### How to Implement It
+
+**Reference specific files.** Use the `@` syntax or full paths:
+
+```
+@src/components/UserTable.tsx - Add sorting to the Name column,
+following the same pattern used for the Date column.
+```
+
+**Mention constraints explicitly.** Do not assume Claude will infer limitations:
+
+```
+Add a rate limiter to the /api/upload endpoint. 
+Constraints:
+- Max 10 requests per minute per user
+- Use the existing Redis client in src/lib/redis.ts
+- Must work behind our Nginx reverse proxy (use X-Forwarded-For)
+- Do not add new dependencies
+```
+
+**Point to patterns.** When your codebase has established patterns, reference them:
+
+```
+Create a new API endpoint for /api/orders following the same 
+pattern as src/app/api/users/route.ts. Use the OrderRepository 
+from src/repositories/order.ts.
+```
+
+**Use multiple input modalities.** Claude Code supports several ways to provide context:
+- **`@` file references** -- Point to specific files
+- **Pasted images** -- Screenshots of UI, error messages, diagrams
+- **Piped data** -- `cat error.log | claude "explain this error"`
+- **URLs** -- Share documentation links or issue URLs
+
+**Specify the output format.** If you need code in a specific style, say so:
+
+```
+Write this as a pure function that takes immutable arguments 
+and returns a new object. No side effects. Add JSDoc comments 
+for the parameters and return type.
+```
+
+### Common Mistakes
+
+- **Assuming Claude knows your project's conventions.** Even with a CLAUDE.md, be specific about which pattern to follow when there are multiple options.
+- **Describing the solution instead of the problem.** "Move the state up to the parent component" is less useful than "The child components are not sharing state correctly -- when I update the filter in SearchBar, ResultsList does not re-render."
+- **Omitting negative constraints.** What Claude should NOT do is often as important as what it should do. "Do not modify the database schema" prevents a common failure mode.
+- **Being specific about the wrong things.** Specifying exact variable names is less valuable than specifying behavior and constraints. Let Claude make implementation choices; constrain the outcomes.
+
+</div>
+
+<div id="practice-7">
+
+## 7. Aggressive Session Hygiene
+
+**Confidence: 4/5** | Sources: Anthropic, Boris Cherny, Sankalp, eesel AI
+
+### What It Is
+
+Session hygiene refers to a set of disciplined practices around when to clear context, when to compact it, when to start fresh, and when to roll back. It is the operational counterpart to understanding that context is your number-one resource (Practice #1). Where Practice #1 explains why context matters, session hygiene tells you what to do about it.
+
+### Why It Works
+
+Every interaction with Claude Code adds to the context window. A successful implementation adds the plan, the code, the test output, and the confirmation. A failed implementation adds all of that plus the error, the debugging conversation, the second attempt, and its output. After three or four tasks, even successful ones, the context window is substantially consumed.
+
+The danger is not just running out of space. It is that old, completed work acts as noise. When Claude has a successful pagination implementation, a fixed CSS bug, and a refactored database query all in its context, and you ask it to write a new API endpoint, all of that prior work competes for attention with your current instructions. Claude may unconsciously pattern-match against the pagination code when writing the new endpoint, or it may "remember" a constraint from the CSS fix that does not apply.
+
+### How to Implement It
+
+**`/clear` between unrelated tasks.** This is the most important habit. Finished adding the search feature? `/clear`. Now working on a bug report? Fresh context.
+
+**`/compact` to summarize when context is growing but the task is not done.** The `/compact` command summarizes the conversation so far, replacing the full history with a condensed version. You can guide the compaction:
+
+```
+/compact focus on the pagination implementation decisions and remaining work
+```
+
+This tells Claude what to preserve in the summary and what to discard.
+
+**Fresh sessions for new tasks.** If you are starting a genuinely new task -- not a continuation of what you were just doing -- start a new Claude Code session entirely. This guarantees a clean context.
+
+**`/rewind` to restore checkpoints.** If Claude goes down a wrong path, `/rewind` lets you step back to a previous point in the conversation. This is cheaper than trying to correct course in a polluted context.
+
+**The two-failure rule.** If Claude has failed to fix something twice after you provided corrections, do not try a third time. `/clear` and write a better prompt incorporating what you learned from the failures. The failed attempts are adding noise that makes success less likely with each iteration.
+
+### Common Mistakes
+
+- **Never clearing.** The most common mistake. Developers treat Claude Code like a continuous conversation and wonder why quality drops after an hour.
+- **Clearing too late.** If you are already at 80% context, clearing helps but you have already lost quality on recent outputs. Clear proactively, not reactively.
+- **Not using `/compact` with focus instructions.** A bare `/compact` lets Claude decide what to preserve. This may not match your priorities.
+- **Continuing after multiple failures.** Each failed attempt makes the next attempt harder due to context pollution. Break the cycle by clearing.
+
+</div>
+
+<div id="practice-8">
+
+## 8. Git Worktrees for Parallel Work
+
+**Confidence: 4/5** | Sources: incident.io, Anthropic, Reddit 500k lines, Addy Osmani
+
+### What It Is
+
+Git worktrees allow you to check out multiple branches of the same repository into separate directories simultaneously, without cloning the repo multiple times. Each worktree gets its own working directory but shares the underlying Git object database. This enables running multiple Claude Code instances in parallel, each working on a different task in an isolated environment.
+
+### Why It Works
+
+Without worktrees, running multiple Claude Code instances against the same repository creates conflicts. Two instances might try to modify the same file, or one instance's changes might confuse another instance's test results. Worktrees solve this by giving each instance its own complete working directory.
+
+The efficiency gain is substantial. Instead of working on one task at a time serially, a developer can:
+
+1. Start Claude on a feature implementation in worktree A
+2. Start Claude on a bug fix in worktree B
+3. Start Claude on a refactoring task in worktree C
+4. Review and merge results as they complete
+
+Each instance has full access to the project's files but cannot interfere with the others. The overhead is minimal -- worktrees share the Git object database, so they only create the working files they need rather than duplicating the entire repository.
+
+### How to Implement It
+
+**Basic worktree setup:**
+
+```bash
+# Create a worktree for a new feature branch
+git worktree add ../my-project-feature-x feature-x
+
+# Create a worktree for a bugfix
+git worktree add ../my-project-bugfix-123 bugfix-123
+
+# List active worktrees
+git worktree list
+
+# Remove a worktree when done
+git worktree remove ../my-project-feature-x
+```
+
+**Claude Code has native `--worktree` support** that automates this process. When launching Claude Code with `--worktree`, it automatically creates an isolated worktree for the session. For a complete walkthrough of parallel workflows, see the [Multi-Agent Patterns Guide](/guides/multi-agent-guide/).
+
+**incident.io's `w` bash function** is a community-tested pattern for streamlining worktree management. The function creates a worktree, navigates to it, and opens Claude Code in a single command, reducing the friction of parallel work:
+
+```bash
+# incident.io-style worktree function
+w() {
+  branch_name="$1"
+  worktree_path="../$(basename $(pwd))-$branch_name"
+  git worktree add "$worktree_path" -b "$branch_name" 2>/dev/null || \
+    git worktree add "$worktree_path" "$branch_name"
+  cd "$worktree_path"
+  claude
+}
+
+# Usage: w feature-pagination
+```
+
+### Common Mistakes
+
+- **Forgetting to clean up worktrees.** Orphaned worktrees consume disk space and can cause confusion. Remove them when the branch is merged.
+- **Sharing node_modules or build caches across worktrees.** Each worktree should have its own dependency installation. Run `npm install` (or equivalent) in each worktree.
+- **Not setting up CLAUDE.md in worktrees.** Worktrees inherit the repository's CLAUDE.md, but if you have local overrides (such as `~/.claude/CLAUDE.md`), verify they apply.
+- **Running too many parallel instances.** Each Claude Code instance uses API credits. Three parallel instances cost three times as much. Balance parallelism with cost.
+
+</div>
+
+<div id="practice-9">
+
+## 9. Use Subagents to Protect Context
+
+**Confidence: 4/5** | Sources: Anthropic, Sankalp, eesel AI, Addy Osmani
+
+### What It Is
+
+Subagents are separate Claude Code instances that run in their own context windows, perform a scoped task, and return only their results to the main conversation. They are the delegation mechanism for context-expensive operations like codebase exploration, multi-file analysis, and post-implementation verification.
+
+### Why It Works
+
+Consider asking Claude to "understand how authentication works in this codebase." To answer that, Claude might need to read 15-20 files -- auth middleware, route handlers, token utilities, user models, configuration files, test files. Each file read consumes context. By the time Claude has finished exploring, your context window might be 40% full before you have asked it to do any actual work.
+
+A subagent performs this exploration in its own context window and returns a concise summary: "Authentication uses JWT tokens issued by `src/auth/jwt.ts`, verified by middleware in `src/middleware/auth.ts`, with refresh token rotation handled by `src/auth/refresh.ts`. The User model in `src/models/user.ts` stores hashed passwords using bcrypt."
+
+Your main conversation receives this summary -- a few lines instead of 15 files worth of content. The main context window stays clean for the actual implementation work.
+
+### How to Implement It
+
+**For research and exploration:**
+
+```
+Use a subagent to explore the authentication system in this codebase.
+Have it report back:
+1. Which files handle auth
+2. What token strategy is used
+3. How sessions are managed
+4. Any known security concerns in the code comments
+```
+
+**For verification after implementation:**
+
+```
+Use a subagent to verify the changes I just made:
+1. Run the full test suite
+2. Check for any TypeScript errors
+3. Verify no console.log statements were left in production code
+4. Report back pass/fail for each check
+```
+
+**For multi-file analysis:**
+
+```
+Use a subagent to find all places in the codebase where we 
+directly access the database without going through a repository. 
+Report the file, line number, and what query is being made.
+```
+
+### Common Mistakes
+
+- **Delegating tasks that need main context.** If a subagent needs to know decisions made earlier in your conversation, it will not have that context. Keep tasks delegated to subagents self-contained.
+- **Not scoping the subagent task.** "Explore the codebase" is too broad. "Find all API endpoints that lack authentication middleware" is scoped.
+- **Using subagents for simple tasks.** If reading one file answers your question, a subagent adds overhead without benefit. Use them for tasks that would consume significant context.
+- **Ignoring subagent results.** Review what the subagent reports. It may have missed something or misunderstood a pattern. The summary is a starting point, not a final answer.
+
+</div>
+
+<div id="practice-10">
+
+## 10. Use Hooks for Must-Happen Actions
+
+**Confidence: 4/5** | Sources: Anthropic, Anthropic hooks guide, HumanLayer, okhlopkov
+
+### What It Is
+
+Hooks are deterministic scripts that Claude Code executes automatically at defined points in its workflow -- before or after tool calls, before or after commands, on commit, etc. They are the enforcement mechanism for rules that must always be followed, as opposed to CLAUDE.md instructions which are advisory.
+
+### Why It Works
+
+The critical distinction is between **advisory** and **deterministic** compliance:
+
+> **CLAUDE.md instructions have roughly 80% compliance.** Claude will follow them most of the time, but under pressure (complex tasks, large context, competing instructions), it may skip or misinterpret them. This is acceptable for style preferences but unacceptable for security requirements.
+>
+> **Hooks have 100% compliance.** They are scripts executed by the Claude Code runtime, not by the model. Claude cannot skip, ignore, or misinterpret a hook. If a pre-commit hook rejects a commit that includes a `.env` file, that commit is blocked regardless of what Claude "thinks."
+
+This makes hooks the correct mechanism for anything where failure is unacceptable: security checks, formatting standards, lint rules, sensitive file protection. See [Hook Configuration Examples](/templates/hooks-examples/) for ready-to-use hook configurations covering common enforcement scenarios.
+
+### How to Implement It
+
+**Pre-commit hook blocking sensitive files:**
+
+```json
+{
+  "hooks": {
+    "pre-commit": [
+      {
+        "command": "git diff --cached --name-only | grep -E '\\.(env|pem|key)$' && echo 'ERROR: Attempting to commit sensitive files' && exit 1 || exit 0",
+        "description": "Block commits containing sensitive files"
+      }
+    ]
+  }
+}
+```
+
+**Post-save hook for formatting:**
+
+```json
+{
+  "hooks": {
+    "post-tool-call": [
+      {
+        "matcher": "write_file|edit_file",
+        "command": "npx prettier --write $CLAUDE_FILE_PATH",
+        "description": "Auto-format files after Claude edits them"
+      }
+    ]
+  }
+}
+```
+
+**Agent hooks for complex verification** (with 60-second timeout for longer-running checks):
+
+```json
+{
+  "hooks": {
+    "post-tool-call": [
+      {
+        "matcher": "write_file",
+        "command": "npx eslint $CLAUDE_FILE_PATH --max-warnings 0",
+        "timeout": 60000,
+        "description": "Lint files after writing"
+      }
+    ]
+  }
+}
+```
+
+**What to enforce with hooks vs. CLAUDE.md:**
+
+| Mechanism | Use For | Compliance |
+|---|---|---|
+| CLAUDE.md | Style preferences, architecture guidance, workflow suggestions | ~80% |
+| Hooks | Security checks, formatting, linting, file protection, required verification | 100% |
+
+### Common Mistakes
+
+- **Putting critical rules only in CLAUDE.md.** If a rule must never be violated (such as "never commit API keys"), it belongs in a hook, not in CLAUDE.md.
+- **Hooks that are too slow.** A hook that takes 30 seconds to run will be triggered on every relevant action. Keep hooks fast or use them selectively.
+- **Not testing hooks locally.** A broken hook can block all of Claude's work. Test hooks manually before enabling them.
+- **Over-hooking.** Hooks that fire on every file write add latency to every action. Use matcher patterns to target only relevant files.
+
+</div>
+
+<div id="practice-11">
+
+## 11. Use Monorepos for Context Management
+
+**Confidence: 3/5** | Sources: Reddit 500k lines, Anthropic, shanraisshan
+
+### What It Is
+
+A monorepo is a single repository containing all related code for a project -- frontend, backend, shared libraries, infrastructure configuration. For Claude Code, monorepos provide a significant advantage: all the code Claude might need to reference exists in a single context, accessible without switching repositories or making assumptions about code that lives elsewhere.
+
+### Why It Works
+
+When frontend and backend code live in separate repositories, Claude working on an API change cannot see the frontend code that calls that API. It must make assumptions about request formats, error handling, and data shapes. These assumptions are frequently wrong, leading to integration bugs that only surface when the pieces are combined.
+
+In a monorepo, Claude can read the frontend component that calls the API, see the exact request format it sends, verify the response shape it expects, and ensure the backend change is compatible. This cross-boundary visibility is the primary benefit.
+
+A secondary benefit is that CLAUDE.md instructions can be layered. The root CLAUDE.md contains project-wide instructions, while sub-directory CLAUDE.md files contain domain-specific instructions:
+
+```
+/CLAUDE.md                    -- Project-wide: test commands, overall architecture
+/packages/api/CLAUDE.md       -- API-specific: route conventions, middleware patterns
+/packages/web/CLAUDE.md       -- Frontend-specific: component patterns, state management
+/packages/shared/CLAUDE.md    -- Shared library: export conventions, versioning rules
+```
+
+Claude automatically reads the relevant CLAUDE.md files based on which directory it is working in, getting both global and local context without overloading any single file.
+
+### How to Implement It
+
+**Structure the monorepo with clear boundaries:**
+
+```
+project/
+  packages/
+    api/          -- Backend API
+    web/          -- Frontend application
+    shared/       -- Shared types, utilities, constants
+    db/           -- Database migrations and models
+  infrastructure/ -- Deployment configuration
+  CLAUDE.md       -- Root-level instructions
+```
+
+**Use modular routing maps** to help Claude understand how frontend and backend connect:
+
+```markdown
+# Root CLAUDE.md
+
+## API Route Map
+- POST /api/auth/login → packages/api/src/routes/auth.ts → packages/web/src/hooks/useAuth.ts
+- GET /api/users → packages/api/src/routes/users.ts → packages/web/src/components/UserList.tsx
+```
+
+This gives Claude a navigation map without requiring it to scan the entire codebase.
+
+**Use sub-directory CLAUDE.md files** to keep context focused. When Claude is working in `packages/api/`, it reads the root CLAUDE.md and `packages/api/CLAUDE.md` but not `packages/web/CLAUDE.md`, keeping its context relevant.
+
+### Common Mistakes
+
+- **Monorepo without clear boundaries.** A monorepo where everything depends on everything is harder for Claude to navigate, not easier. Clear package boundaries help.
+- **Root CLAUDE.md that tries to describe everything.** Let sub-directory files handle domain-specific instructions. The root should only contain truly global information.
+- **Not using path-based Claude instructions.** If all your instructions are in the root CLAUDE.md, you lose the layering benefit.
+- **Forcing a monorepo conversion.** If your project already works well as multiple repositories, converting to a monorepo purely for Claude Code is probably not worth the engineering cost. Use worktrees and cross-repository instructions instead.
+
+</div>
+
+<div id="practice-12">
+
+## 12. Use Popular Stacks and Libraries
+
+**Confidence: 3/5** | Sources: Reddit 500k lines
+
+### What It Is
+
+When choosing technologies for a project where Claude Code will be a primary development tool, prefer popular, well-established frameworks and libraries over niche alternatives. This is not about what is technically best -- it is about what Claude can most reliably work with.
+
+### Why It Works
+
+LLMs are statistical models trained on large corpora of code. The more examples of a particular framework or library that exist in the training data, the more accurately the model can generate code using that technology. This has direct, measurable implications:
+
+> Claude makes **fewer mistakes with training-data-heavy code.** A React component with React Query for data fetching is something Claude has seen thousands of examples of. A custom reactive framework with a bespoke data fetching layer is something Claude has seen few or no examples of.
+
+This is not a deficiency in Claude -- it is a fundamental property of statistical learning. Human developers also make fewer mistakes with technologies they have more experience with. The difference is that Claude's "experience" is its training data, and you can influence which technologies your project uses.
+
+The practical impact is significant in several areas:
+
+**Error handling patterns.** Popular frameworks have well-documented error patterns that Claude reproduces accurately. Niche frameworks may have idiosyncratic error handling that Claude approximates incorrectly.
+
+**API surface accuracy.** Claude is less likely to hallucinate API methods for Express.js (extremely common in training data) than for a newer, less popular HTTP framework. The more examples in training data, the more precisely Claude knows the actual available methods, their parameters, and their return types.
+
+**Community patterns.** Popular frameworks have established community patterns (how to structure a Next.js app, how to organize Redux slices, how to write Django views). Claude reproduces these patterns reliably because it has seen them many times. For niche frameworks, Claude must infer patterns, which is less reliable.
+
+### How to Implement It
+
+**For new projects, prefer mainstream technologies:**
+
+| Category | Prefer | Over |
+|---|---|---|
+| Frontend framework | React, Vue, Svelte | Custom reactive frameworks |
+| Backend framework | Express, FastAPI, Django, Next.js | Lesser-known HTTP libraries |
+| ORM | Prisma, SQLAlchemy, TypeORM | Niche or custom ORMs |
+| Testing | Jest, Vitest, pytest | Uncommon test runners |
+| Styling | Tailwind CSS, CSS Modules | Obscure CSS-in-JS libraries |
+| State management | React Query, Zustand, Redux Toolkit | Custom state solutions |
+
+**For existing projects with niche technologies,** compensate by providing more context in CLAUDE.md:
+
+```markdown
+## Framework: Hono (lightweight HTTP framework)
+- Routes defined in src/routes/*.ts
+- Middleware uses c.next() pattern (similar to Express but not identical)
+- See src/routes/example.ts for the canonical route pattern
+- Hono does NOT have app.use() for route-specific middleware; use route groups instead
+```
+
+**When evaluating new dependencies,** add "Claude Code reliability" as a factor alongside performance, bundle size, and maintainability. A library that Claude cannot use correctly will cost you more in debugging time than it saves in features.
+
+### Common Mistakes
+
+- **Choosing technologies solely based on Claude compatibility.** This is one factor among many. If a niche technology is genuinely the best tool for the job, use it and compensate with better CLAUDE.md instructions and more verification loops.
+- **Assuming Claude cannot work with niche technologies.** It can -- it just makes more mistakes. The fix is more verification, not avoidance.
+- **Not providing context for less common libraries.** If you use a niche library, document its patterns in CLAUDE.md. Claude can follow documented patterns even if it has not seen many training examples.
+- **Ignoring version differences.** Claude's training data has a cutoff. For rapidly evolving frameworks (like Next.js, which changes significantly between major versions), specify the version you are using and note any API changes from previous versions.
+
+</div>
+
+---
+
+## Summary Table
+
+| # | Practice | Confidence | Key Metric |
+|---|---|---|---|
+| 1 | Context Window Is Your #1 Resource | 5/5 | Precision drops at 70% capacity |
+| 2 | Give Claude Verification Loops | 5/5 | 2-3x quality improvement |
+| 3 | Plan Before Coding | 5/5 | 0.8^20 = 1.15% success without planning |
+| 4 | Keep CLAUDE.md Concise | 5/5 | ~100 lines outperforms 800 lines |
+| 5 | Test-Driven Development | 5/5 | 1.75x more logic errors than humans |
+| 6 | Be Specific in Prompts | 5/5 | Reduces file reads and context waste |
+| 7 | Aggressive Session Hygiene | 4/5 | Clear after every completed task |
+| 8 | Git Worktrees for Parallel Work | 4/5 | Enables N concurrent Claude instances |
+| 9 | Use Subagents to Protect Context | 4/5 | Research stays out of main context |
+| 10 | Use Hooks for Must-Happen Actions | 4/5 | 100% compliance vs 80% advisory |
+| 11 | Use Monorepos for Context Management | 3/5 | Cross-boundary visibility |
+| 12 | Use Popular Stacks and Libraries | 3/5 | Fewer hallucinated APIs |
+
+---
+
+## How to Use This Guide
+
+**If you are just starting with Claude Code,** focus on practices 1-6 first. These are the highest-confidence, highest-impact practices and together they address the most common [failure modes](/research/failure-modes/): context exhaustion, unverified output, planning failures, configuration bloat, untested code, and vague prompts. The [Project Setup Checklist](/guides/project-setup/) walks you through configuring a new project with these practices from day one.
+
+**If you are already using Claude Code effectively,** practices 7-10 represent the next level of sophistication. Session hygiene, worktrees, subagents, and hooks are the operational practices that separate casual users from teams that reliably ship production code with AI assistance.
+
+**If you are designing a new project with Claude Code in mind,** practices 11-12 inform architectural decisions. Monorepo structure and technology choices made at project inception pay dividends throughout the project's lifetime.
+
+Every practice in this guide is corroborated by multiple independent sources. None is speculative. The confidence ratings reflect the breadth of agreement, not the importance of the practice -- a 3/5 confidence practice that applies to your situation may be more valuable than a 5/5 practice you have already adopted.

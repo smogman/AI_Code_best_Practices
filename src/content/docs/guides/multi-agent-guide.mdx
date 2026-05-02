@@ -1,0 +1,451 @@
+---
+title: Multi-Agent Patterns
+description: When and how to use parallel Claude Code sessions - from subagents to full orchestration
+---
+
+Running a single Claude Code session is the default workflow. But as tasks grow in scope -- a full feature spanning frontend and backend, a large refactoring across many files, a migration with interdependent steps -- a single session becomes a bottleneck. The context window fills, attention fragments, and the work that could be parallelized waits in a serial queue.
+
+Multi-agent patterns address this by splitting work across multiple Claude sessions. The patterns range from simple (spawn a subagent for a research task) to complex (orchestrate a team of five agents building different parts of a system simultaneously). This guide covers three tiers of multi-agent usage, the tooling and git infrastructure that makes them practical, quality control mechanisms, failure modes to watch for, and when to use each approach. For ready-to-use subagent definitions, see the [Subagent Examples](/templates/agents-examples/).
+
+import ContentPanels from '../../../components/ContentPanels';
+
+<ContentPanels client:load items={[
+  { id: "mag-tiers", title: "Three Tiers of Multi-Agent", description: "Subagents for focused tasks, Agent Teams for true parallelism (sweet spot 3-5), and orchestration at scale for 3-10+ agents.", date: "2026-04-11", icon: "📊" },
+  { id: "mag-worktrees", title: "Git Worktree Setup", description: "Each agent gets an isolated working directory. The custom `w` bash function from incident.io for one-command worktree management.", date: "2026-04-11", icon: "🌳" },
+  { id: "mag-writer-reviewer", title: "The Writer/Reviewer Pattern", description: "Two separate sessions: one writes code, another reviews with fresh context. Also works as test-writer/code-writer variant.", date: "2026-04-11", icon: "✍️" },
+  { id: "mag-quality", title: "Quality Gates", description: "Plan approval before implementation, automated hooks on task completion, and a dedicated reviewer agent before human review.", date: "2026-04-11", icon: "🛡️" },
+  { id: "mag-failures", title: "Failure Modes", description: "Loop traps (set MAX_ITERATIONS=8), futile thrashing, context isolation problems. Kill criteria: reassign after 3+ iterations.", date: "2026-04-11", icon: "⚠️" },
+  { id: "mag-tokens", title: "Token Budgets", description: "Frontend 180k, Backend 280k, auto-pause at 85%. Agent teams use ~7x more tokens than single sessions.", date: "2026-04-11", icon: "💰" },
+  { id: "mag-when-not", title: "When NOT to Use Multi-Agent", description: "Small tasks, unclear requirements, shared file dependencies, or when coordination overhead exceeds throughput gains.", date: "2026-04-11", icon: "🚫" },
+  { id: "mag-agents-md", title: "AGENTS.md: Human Curation Matters", description: "Human-curated docs give ~4% improvement while AI-written rules cause ~3% harm. Always hand-write your AGENTS.md.", date: "2026-04-11", icon: "📝" },
+  { id: "mag-tools", title: "Tool Comparison", description: "Agent Teams, Claude Squad, Conductor, Auto-Claude, oh-my-claudecode — features, strengths, and when to use each.", date: "2026-04-11", icon: "🔧" },
+]} accentColor="#34d399" />
+
+<div id="mag-tiers">
+
+## Three Tiers of Multi-Agent
+
+Multi-agent is not one pattern. It is a spectrum with three distinct tiers, each with different complexity, coordination requirements, and appropriate use cases.
+
+### Tier 1: Subagents
+
+Subagents are the simplest multi-agent pattern. Your main Claude session spawns a focused child session using the Task tool to handle a specific, well-scoped piece of work. The child runs in its own context window, does its work, and returns a result to the parent. You stay in your main session the entire time.
+
+**How it works:**
+
+```
+# In your main Claude session
+> I need to add rate limiting to the /api/payments endpoint.
+> First, use a subagent to research how our existing rate limiting works.
+> Check src/middleware/ and any rate-limiting configuration files.
+```
+
+Claude spawns a subagent that reads the relevant files, synthesizes what it finds, and returns a summary to the main session. The main session's context stays clean -- it gets only the summary, not the full content of every file the subagent read.
+
+**Key characteristics:**
+
+- **Explicit file ownership**: You tell each subagent which files it should read and modify. There is no automatic deconfliction.
+- **Manual dependency management**: If subagent B needs results from subagent A, you manage that sequencing yourself.
+- **Single parent context**: The parent session orchestrates everything and receives all results.
+- **Low coordination overhead**: No shared state, no messaging. The parent is the communication bus.
+
+**Best for:** Research tasks, reading large codebases, generating boilerplate, any well-scoped subtask where you want to keep your main context clean.
+
+### Tier 2: Agent Teams
+
+Agent teams go beyond the parent-child model. Multiple Claude sessions run as true peers, working on different parts of the same project simultaneously. They share a task list, can resolve dependencies between their work, and communicate through a shared coordination layer.
+
+**How it works:**
+
+Using tools like Claude's built-in agent teams, you define a set of tasks and assign them to parallel agents:
+
+```
+# Define tasks for the team
+Tasks:
+1. [Frontend] Build the rate limiting dashboard UI component
+2. [Backend] Implement the rate limiting middleware
+3. [Database] Create the rate_limits table migration and repository
+4. [Tests] Write integration tests for the rate limiting flow
+
+# Each agent works independently on its assigned task
+# Dependency resolution: Task 4 waits for tasks 2 and 3 to complete
+```
+
+**Key characteristics:**
+
+- **True parallelism**: All agents work simultaneously. A task that would take 40 minutes serially can complete in 10-15 minutes.
+- **Shared task lists**: Agents pick up and complete tasks from a common backlog.
+- **Auto dependency resolution**: The system understands that test-writing depends on implementation completing first.
+- **Inter-agent messaging**: Agents can signal when they have completed work that another agent depends on.
+- **Sweet spot: 3-5 teammates**: Below three, the coordination overhead is not worth it. Above five, the complexity of managing shared state, merge conflicts, and interdependencies outweighs the parallelism benefit.
+
+**Best for:** Feature development that spans multiple layers (frontend, backend, database), large refactoring efforts, migration projects with parallelizable steps.
+
+### Tier 3: Orchestration at Scale
+
+For work that requires more than five agents or involves complex coordination logic, dedicated orchestration tools manage the agent fleet.
+
+**Local orchestrators** run on your machine and coordinate 3-10 agents:
+
+- **Conductor**: Manages agent lifecycles, task assignment, and dependency resolution. Good for structured workflows where you know the task graph upfront.
+- **Vibe Kanban**: Provides a kanban-style interface for managing agent tasks. Better for exploratory work where tasks emerge during execution.
+
+**Cloud agents** (remote agents) run asynchronously on Anthropic's infrastructure:
+
+```bash
+# Kick off a cloud agent for a long-running task
+claude --remote "Refactor all API endpoints to use the new error handling
+  pattern defined in src/lib/errors.ts. Create a PR when complete."
+```
+
+Cloud agents are ideal for tasks that take 30+ minutes, do not require interactive guidance, and can run while you are away from your machine. They create their own branches and PRs, which you review when they complete.
+
+**Best for:** Large-scale migrations, codebase-wide refactoring, overnight tasks, CI-integrated workflows.
+
+</div>
+
+<div id="mag-worktrees">
+
+## Git Worktree Setup
+
+Multi-agent patterns depend on git worktrees for isolation. Without worktrees, multiple agents modifying the same files in the same working directory will produce conflicts and corruption.
+
+### What worktrees are
+
+A git worktree is an additional working directory linked to the same repository. Multiple worktrees share a single `.git` database (history, branches, objects) but each has its own working directory with its own branch checked out. This means agents in different worktrees can modify files simultaneously without interfering with each other.
+
+```bash
+# Create a worktree for a new feature branch
+git worktree add ../my-project-rate-limiting feature/rate-limiting
+
+# The result:
+# my-project/              <-- main worktree (your branch)
+# my-project-rate-limiting/ <-- new worktree (feature/rate-limiting branch)
+# Both share the same .git database
+```
+
+### Claude's --worktree flag
+
+Claude Code supports a `--worktree` flag that automatically creates and manages worktrees:
+
+```bash
+# Start Claude in a new worktree with a dedicated branch
+claude --worktree feature/rate-limiting
+```
+
+This creates a worktree, checks out the specified branch (creating it if needed), and starts Claude in that directory. When the session ends, you can merge the branch normally.
+
+### The `w` bash function (incident.io pattern)
+
+incident.io's engineering team uses a bash helper function that streamlines worktree creation for parallel Claude sessions:
+
+```bash
+# Add to your ~/.bashrc or ~/.zshrc
+w() {
+  local branch="$1"
+  local base="${2:-main}"
+  local repo_name=$(basename "$(git rev-parse --show-toplevel)")
+  local worktree_path="../${repo_name}-${branch}"
+
+  git worktree add -b "$branch" "$worktree_path" "$base"
+  echo "Created worktree at $worktree_path on branch $branch (from $base)"
+  cd "$worktree_path"
+}
+
+# Usage:
+# w rate-limiting        <-- creates worktree from main
+# w rate-limiting develop <-- creates worktree from develop
+```
+
+This function creates a worktree adjacent to your main repo directory, names it predictably, and drops you into it. Each agent session runs in its own worktree, modifying its own branch with zero risk of conflict.
+
+### Cleanup
+
+```bash
+# List all worktrees
+git worktree list
+
+# Remove a worktree after merging
+git worktree remove ../my-project-rate-limiting
+
+# Clean up stale worktree references
+git worktree prune
+```
+
+</div>
+
+<div id="mag-writer-reviewer">
+
+## The Writer/Reviewer Pattern
+
+The simplest and most battle-tested multi-agent pattern. One session writes code, a completely separate session reviews it. The reviewer has no access to the writer's conversation history -- it sees only the diff and the codebase.
+
+### Why it works
+
+The writer carries sunk-cost bias. It spent time and tokens arriving at a solution, and reviewing its own output activates the same reasoning patterns that produced any errors. A fresh session has no history, no bias, and evaluates the code purely on its merits.
+
+This mirrors the most well-established principle in human software engineering: the person who writes code is the worst person to review it.
+
+### Concrete implementation
+
+**Writer session (Terminal 1):**
+
+```
+claude
+
+> Implement the sliding window rate limiter for the /api/payments endpoint.
+> Follow the spec in docs/rate-limiting-spec.md.
+> Write tests covering: normal operation, burst detection, Redis failure
+> fallback, and concurrent request handling.
+> Commit your changes when tests pass.
+```
+
+**Reviewer session (Terminal 2, after writer completes):**
+
+```
+claude
+
+> Review the changes on branch feature/rate-limiting against main.
+> Run: git diff main...HEAD
+>
+> Focus on:
+> - Correctness of the sliding window algorithm
+> - Edge cases: null inputs, Redis unavailability, clock skew
+> - Thread safety of the concurrent request handling
+> - Adherence to the rate limiting spec in docs/rate-limiting-spec.md
+>
+> Provide findings as a numbered list with severity:
+> CRITICAL, WARNING, or NIT.
+```
+
+### The Test-Writer / Code-Writer variant
+
+A powerful variation where one session writes tests from a specification and a separate session writes implementation to make those tests pass:
+
+```
+# Session 1: Test Writer
+> Read docs/rate-limiting-spec.md.
+> Write a comprehensive test suite for the rate limiting middleware.
+> Include tests for: happy path, all error conditions in the spec,
+> boundary values (exactly at limit, one over), concurrent access,
+> Redis failure scenarios, and invalid configuration.
+> DO NOT implement the middleware -- only write tests.
+
+# Session 2: Code Writer (after tests are committed)
+> The test suite in tests/rate-limiter.test.ts defines the expected
+> behavior for the rate limiting middleware. Implement the middleware
+> to make all tests pass. Do not modify the tests.
+```
+
+Because the test-writing session has no knowledge of the implementation approach, it writes more adversarial tests that probe edge cases rather than confirming happy paths.
+
+</div>
+
+<div id="mag-quality">
+
+## Quality Gates
+
+Multi-agent workflows need explicit quality control at every stage. Without gates, agents produce work that looks right but fails in integration.
+
+### Plan approval
+
+Before any agent begins implementation, require a plan that a human reviews:
+
+```markdown
+# In CLAUDE.md
+## Multi-Agent Rules
+- Before implementing, present a plan listing:
+  - Files you will create or modify
+  - Dependencies on other agents' work
+  - Verification steps you will run when done
+- Wait for explicit approval before proceeding
+```
+
+### Automated hooks on task completion
+
+Configure [hooks](/templates/hooks-examples/) that run automatically when an agent completes work:
+
+```json
+{
+  "hooks": {
+    "post-edit": [
+      {
+        "command": "npx tsc --noEmit",
+        "description": "Type-check after every edit"
+      }
+    ],
+    "pre-commit": [
+      {
+        "command": "pnpm lint && pnpm test",
+        "description": "Lint and test before committing"
+      }
+    ]
+  }
+}
+```
+
+### Dedicated reviewer agent
+
+For critical work, assign one agent exclusively to review:
+
+```
+# Agent assignment:
+# Agent 1: Frontend implementation
+# Agent 2: Backend implementation
+# Agent 3: Reviewer (reviews all PRs from agents 1 and 2)
+
+# Agent 3's CLAUDE.md:
+You are a code reviewer. You do not write implementation code.
+For each PR, check:
+- Logic correctness
+- Error handling completeness
+- Adherence to the project's architecture patterns
+- Test coverage for changed code
+Provide findings with severity ratings.
+```
+
+</div>
+
+<div id="mag-failures">
+
+## Failure Modes
+
+Multi-agent workflows have characteristic failure modes that do not occur in single-agent usage. For a broader catalog of common pitfalls, see [Failure Modes](/research/failure-modes/).
+
+### Loop traps
+
+An agent gets stuck in a cycle: attempt a fix, run tests, fail, attempt a similar fix, run tests, fail again. Left unchecked, this burns tokens and context without progress.
+
+**Mitigation: iteration limits with reflection.**
+
+Set a maximum iteration count (8 is a good default). When the agent hits the limit, force it to stop and reflect rather than retry:
+
+```markdown
+# In CLAUDE.md
+## Debugging Rules
+- If you have attempted the same fix more than 3 times, STOP.
+- Write a summary of what you tried and why it failed.
+- Do not attempt a fourth fix -- escalate to the developer.
+- Maximum iterations on any single error: 8. After 8 attempts,
+  document the problem and move on.
+```
+
+**Kill criteria**: If an agent has spent 3+ iterations on the same error with the same approach, kill the session and start fresh with a better-scoped prompt. The context is poisoned with failed attempts.
+
+### Context isolation failures
+
+When agents accidentally read or modify files owned by another agent, their work conflicts. This manifests as merge conflicts, overwritten changes, or subtle bugs where one agent's assumptions are invalidated by another's changes.
+
+**Mitigation: explicit file ownership.**
+
+```markdown
+# Task assignment with file boundaries
+Agent 1 (Frontend): ONLY modify files in src/components/ and src/hooks/
+Agent 2 (Backend): ONLY modify files in src/api/ and src/services/
+Agent 3 (Database): ONLY modify files in src/db/ and migrations/
+
+IMPORTANT: Do not read or modify files outside your assigned directories.
+If you need something from another agent's domain, document the dependency
+and wait for their work to be merged.
+```
+
+### Coordination deadlocks
+
+Agent A waits for Agent B's output, while Agent B waits for Agent A's output. This is rare in practice but catastrophic when it occurs.
+
+**Mitigation:** Define a clear dependency graph before agents start work. Identify which tasks can run in parallel and which must be sequential. If circular dependencies exist, restructure the tasks.
+
+</div>
+
+<div id="mag-tokens">
+
+## Token Budgets
+
+Different types of work consume context at different rates. Setting token budgets prevents agents from running into degradation mid-task.
+
+| Agent Role | Recommended Budget | Rationale |
+|---|---|---|
+| Frontend | ~180k tokens | UI components are typically self-contained with shorter files |
+| Backend | ~280k tokens | Business logic requires reading more context (services, models, tests) |
+| Database/Migration | ~150k tokens | Schema work is usually straightforward with less context needed |
+| Reviewer | ~200k tokens | Needs to read diffs and relevant source, but does not write much |
+
+**Auto-pause at 85% context usage.** When an agent approaches 85% of its context budget, it should pause, summarize its progress, and either complete the current subtask or escalate. Working beyond 85% produces unreliable output that may need to be redone (see [Token and Cost Management](/research/cost-and-context/) for detailed guidance on context degradation thresholds).
+
+```markdown
+# In CLAUDE.md
+## Context Management
+- Monitor your context usage. If you reach 85% capacity:
+  1. Finish the current subtask (do not leave work half-done)
+  2. Commit all completed work
+  3. Report what remains to be done
+  4. The developer will start a fresh session for remaining work
+```
+
+</div>
+
+<div id="mag-when-not">
+
+## When NOT to Use Multi-Agent
+
+Multi-agent is not a universal improvement. It adds complexity, coordination overhead, and cost. Use it only when the benefit clearly outweighs these costs.
+
+**Do not use multi-agent for:**
+
+- **Small tasks**: If the work fits comfortably in a single session (under 50% context), a single agent is simpler and faster.
+- **Unclear requirements**: Multi-agent amplifies ambiguity. If you do not know exactly what you want, figure it out with a single agent first (or use the throw-away draft method), then parallelize the clear plan.
+- **Shared file dependencies**: If multiple agents need to modify the same files, the merge conflicts will cost more than the parallelism saves. Restructure the work so each agent owns distinct files, or do it serially.
+- **Learning/exploration**: When you are trying to understand a codebase or explore approaches, a single interactive session is more productive than orchestrating a team.
+- **Tight coupling**: If every task depends on every other task, there is nothing to parallelize. Sequential execution with a single agent is the right approach.
+
+**The threshold:** If a task takes less than 20 minutes in a single session, multi-agent overhead is not justified. Multi-agent becomes valuable when work would take 40+ minutes serially and can be decomposed into at least three independent subtasks.
+
+</div>
+
+<div id="mag-agents-md">
+
+## AGENTS.md: Human Curation Matters
+
+Some teams create an AGENTS.md file (separate from CLAUDE.md) specifically for multi-agent coordination rules -- which agent handles which domain, how agents communicate, what the handoff protocol is.
+
+There is a critical finding from Addy Osmani's research on this topic: **AI-written rules provide approximately 3% harm to task success rates, while human-curated rules provide approximately 4% improvement.** That is a 7-percentage-point swing based solely on who wrote the coordination instructions.
+
+The implication is clear: multi-agent coordination rules must be human-curated. Do not ask Claude to generate your AGENTS.md or your multi-agent workflow definitions. The patterns that look reasonable to an AI (verbose, comprehensive, symmetrical) are not the patterns that work in practice (concise, prioritized, adapted to your specific codebase's structure).
+
+Write your multi-agent rules yourself, based on how your codebase is actually structured and where the real boundaries between domains lie.
+
+</div>
+
+<div id="mag-tools">
+
+## Tool Comparison
+
+Several tools have emerged to manage multi-agent Claude Code workflows. Each targets a different point on the complexity spectrum.
+
+| Tool | Agents | Coordination | Best For | Notes |
+|---|---|---|---|---|
+| **Agent Teams** (built-in) | 3-5 | Shared task list, auto-dependency | Standard parallel feature work | Native to Claude Code, lowest friction |
+| **Claude Squad** | 2-6 | Tmux-based session management | Developers comfortable with terminal multiplexing | Lightweight, no additional dependencies beyond tmux |
+| **Conductor** | 3-10 | Centralized orchestrator, task DAG | Complex workflows with known dependency graphs | More setup, more control |
+| **Auto-Claude** | 2-5 | Git worktree-based isolation | Simple parallel execution with minimal coordination | Focus on isolation over coordination |
+| **oh-my-claudecode** | Varies | Plugin ecosystem, extensible | Teams wanting customizable workflows | Community-driven, modular |
+| **Vibe Kanban** | 3-8 | Kanban board UI for task management | Visual thinkers, exploratory work | Better discoverability of agent status |
+
+For most teams starting with multi-agent, the built-in agent teams feature is the right starting point. Move to dedicated orchestration tools only when you consistently need more than five agents or require complex dependency management that the built-in tooling does not support.
+
+</div>
+
+---
+
+## Quick Reference
+
+| Decision | Guideline |
+|---|---|
+| When to go multi-agent | Task takes 40+ minutes serially and decomposes into 3+ independent subtasks |
+| Team size sweet spot | 3-5 agents |
+| Isolation mechanism | Git worktrees (one branch per agent) |
+| Quality control | Plan approval + automated [hooks](/templates/hooks-examples/) + dedicated reviewer for critical work |
+| Loop prevention | Max 8 iterations, kill after 3 identical failures |
+| Context budget | Pause at 85%, budget by role (frontend ~180k, backend ~280k) |
+| Coordination rules | Must be human-curated, not AI-generated |
+| Start with | Built-in agent teams, then graduate to orchestration tools as needed |

@@ -1,0 +1,253 @@
+---
+title: Hooks Examples
+description: Common hook configurations for Claude Code automation
+---
+
+Hooks let you run shell commands automatically in response to Claude Code actions. They enforce guardrails, run formatters, execute checks, and log activity --- all without requiring you to remember to do it manually. While CLAUDE.md instructions achieve approximately 80% compliance, hooks are deterministic and achieve 100% --- see [why this distinction matters](/research/consensus-practices/) in the consensus practices research.
+
+## Hook types
+
+Claude Code supports these hook trigger points:
+
+| Hook Type | When It Runs | Common Uses |
+|---|---|---|
+| `PreToolUse` | Before Claude executes a tool (file write, bash command, etc.) | Block dangerous operations, require confirmation |
+| `PostToolUse` | After a tool completes successfully | Run formatters, linters, type-checkers |
+| `Notification` | When Claude sends a notification (e.g., task complete) | Audit logging, external alerts |
+| `Stop` | When Claude finishes a response turn | Final validation, summary actions |
+
+## Where hooks live
+
+Hooks are configured in your settings files. They can be defined at three levels:
+
+- **Project**: `.claude/settings.json` in the project root (committed to version control)
+- **User**: `~/.claude/settings.json` (personal, applies to all projects)
+- **Enterprise**: managed via organization policy
+
+Each hook configuration has:
+
+- `hooks`: an object keyed by hook type
+- Each hook type contains an array of hook definitions
+- Each hook definition has a `matcher` (optional, to filter by tool name or file pattern), a `command` (the shell command to run), and an optional `timeout` in milliseconds
+
+import ContentPanels from '../../../components/ContentPanels';
+
+<ContentPanels client:load accentColor="#fbbf24" items={[
+  { id: "hook-secrets", title: "Block Secret File Commits", description: "Pre-commit hook that prevents .env, .key, and .pem files from being committed.", icon: "🔒", date: "2026-04-11" },
+  { id: "hook-format", title: "Auto-Format After Edits", description: "Post-edit hook that runs ESLint/Prettier automatically after file changes.", icon: "✨", date: "2026-04-11" },
+  { id: "hook-typecheck", title: "TypeScript Type-Check", description: "Post-edit hook that runs tsc --noEmit after TypeScript file changes.", icon: "🔤", date: "2026-04-11" },
+  { id: "hook-migrations", title: "Block Migration Writes", description: "Pre-tool hook that prevents writes to the migrations/ directory without confirmation.", icon: "🛡️", date: "2026-04-11" },
+  { id: "hook-audit", title: "Audit Log", description: "Notification hook that logs all tool uses to a file for review and compliance.", icon: "📋", date: "2026-04-11" },
+  { id: "hook-tests", title: "Pre-Commit Test Runner", description: "Verifies the test suite passes before allowing any commit to proceed.", icon: "🧪", date: "2026-04-11" },
+]} />
+
+<div id="hook-secrets">
+
+## Hook 1: Block commits of secret files
+
+Prevent accidentally committing files that contain secrets. This hook runs before any bash command and rejects `git commit` invocations if sensitive files are staged.
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "command": "bash -c 'if echo \"$CLAUDE_TOOL_INPUT\" | grep -q \"git commit\"; then STAGED=$(git diff --cached --name-only 2>/dev/null); for pattern in \"*.env\" \"*.env.*\" \"*.key\" \"*.pem\" \"*.p12\" \"*.pfx\" \"credentials*\" \"*secret*\"; do if echo \"$STAGED\" | grep -qi \"$pattern\"; then echo \"BLOCKED: Refusing to commit files matching $pattern. Unstage sensitive files first.\" >&2; exit 2; fi; done; fi'",
+        "timeout": 10000
+      }
+    ]
+  }
+}
+```
+
+**How it works**: When Claude invokes any Bash tool, the hook checks if the command contains `git commit`. If so, it inspects the staged files and blocks the commit if any match secret file patterns. Exit code 2 tells Claude the action was blocked.
+
+</div>
+
+<div id="hook-format">
+
+## Hook 2: Auto-format after file edits
+
+Run ESLint with auto-fix and Prettier after Claude edits any JavaScript or TypeScript file.
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "bash -c 'FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | grep -oP '\"file_path\"\\s*:\\s*\"\\K[^\"]+'); if [[ \"$FILE\" =~ \\.(js|jsx|ts|tsx)$ ]]; then npx eslint --fix \"$FILE\" 2>/dev/null; npx prettier --write \"$FILE\" 2>/dev/null; echo \"Formatted: $FILE\"; fi'",
+        "timeout": 30000
+      }
+    ]
+  }
+}
+```
+
+**How it works**: After any Edit or Write tool use, the hook extracts the file path from the tool input. If the file is a JS/TS file, it runs ESLint with auto-fix followed by Prettier. This ensures Claude's output always matches your project's formatting rules.
+
+</div>
+
+<div id="hook-typecheck">
+
+## Hook 3: Type-check after TypeScript edits
+
+Run the TypeScript compiler in no-emit mode after any `.ts` or `.tsx` file is modified.
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "bash -c 'FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | grep -oP '\"file_path\"\\s*:\\s*\"\\K[^\"]+'); if [[ \"$FILE\" =~ \\.tsx?$ ]]; then npx tsc --noEmit --pretty 2>&1 | head -30; fi'",
+        "timeout": 60000
+      }
+    ]
+  }
+}
+```
+
+**How it works**: Similar to the formatter hook, but runs `tsc --noEmit` to catch type errors immediately. The output is truncated to 30 lines to avoid flooding Claude's context with error spam. The longer timeout (60s) accounts for larger projects where type-checking is slow.
+
+</div>
+
+<div id="hook-migrations">
+
+## Hook 4: Block writes to migrations directory
+
+Prevent Claude from creating or modifying database migration files without explicit confirmation. Migrations are sensitive --- they run against production databases.
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "bash -c 'FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | grep -oP '\"file_path\"\\s*:\\s*\"\\K[^\"]+'); if echo \"$FILE\" | grep -q \"/migrations/\"; then echo \"BLOCKED: Cannot write to migrations/ directory. Migration files affect production databases and must be created through the ORM CLI (e.g., prisma migrate dev, knex migrate:make). Ask the user to run the migration command manually.\" >&2; exit 2; fi'",
+        "timeout": 5000
+      }
+    ]
+  }
+}
+```
+
+**How it works**: Before any file write or edit, the hook checks if the target path contains `/migrations/`. If so, it blocks the action with an explanatory message. This forces migrations to go through proper ORM tooling rather than being hand-written by Claude.
+
+</div>
+
+<div id="hook-audit">
+
+## Hook 5: Audit log of all tool uses
+
+Log every tool invocation to a local file for auditing. Useful for understanding what Claude did during a long session.
+
+```json
+{
+  "hooks": {
+    "Notification": [
+      {
+        "command": "bash -c 'echo \"[$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")] Tool: ${CLAUDE_TOOL_NAME:-notification} | Session: ${CLAUDE_SESSION_ID:-unknown}\" >> .claude/audit.log'",
+        "timeout": 5000
+      }
+    ],
+    "PostToolUse": [
+      {
+        "command": "bash -c 'echo \"[$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")] Tool: $CLAUDE_TOOL_NAME | Exit: $CLAUDE_TOOL_EXIT_CODE\" >> .claude/audit.log'",
+        "timeout": 5000
+      }
+    ]
+  }
+}
+```
+
+**How it works**: Two hooks work together. The PostToolUse hook logs every tool invocation with its name and exit code. The Notification hook captures notification events. Both append timestamped entries to `.claude/audit.log`. Add this file to `.gitignore` --- it is local debugging data, not something to commit.
+
+</div>
+
+<div id="hook-tests">
+
+## Hook 6: Verify tests pass before commit
+
+Run the test suite before allowing any git commit. If tests fail, block the commit.
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "command": "bash -c 'if echo \"$CLAUDE_TOOL_INPUT\" | grep -q \"git commit\"; then echo \"Running test suite before commit...\"; npm test 2>&1 | tail -20; if [ ${PIPESTATUS[0]} -ne 0 ]; then echo \"BLOCKED: Test suite failed. Fix failing tests before committing.\" >&2; exit 2; fi; echo \"Tests passed. Commit allowed.\"; fi'",
+        "timeout": 120000
+      }
+    ]
+  }
+}
+```
+
+**How it works**: Before any Bash command, the hook checks if it is a git commit. If so, it runs the full test suite first. If any tests fail, the commit is blocked. The 2-minute timeout accommodates larger test suites. The `tail -20` ensures only the final summary of test output is shown, not the entire run.
+
+</div>
+
+## Combining multiple hooks
+
+You can (and should) combine multiple hooks in a single settings file. Here is a complete `.claude/settings.json` that uses several of the above hooks together:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "command": "bash -c 'if echo \"$CLAUDE_TOOL_INPUT\" | grep -q \"git commit\"; then STAGED=$(git diff --cached --name-only 2>/dev/null); for pattern in \"*.env\" \"*.env.*\" \"*.key\" \"*.pem\" \"*.p12\" \"*.pfx\" \"credentials*\" \"*secret*\"; do if echo \"$STAGED\" | grep -qi \"$pattern\"; then echo \"BLOCKED: Refusing to commit files matching $pattern.\" >&2; exit 2; fi; done; fi'",
+        "timeout": 10000
+      },
+      {
+        "matcher": "Edit|Write",
+        "command": "bash -c 'FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | grep -oP '\"file_path\"\\s*:\\s*\"\\K[^\"]+'); if echo \"$FILE\" | grep -q \"/migrations/\"; then echo \"BLOCKED: Cannot write to migrations/ directly.\" >&2; exit 2; fi'",
+        "timeout": 5000
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "bash -c 'FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | grep -oP '\"file_path\"\\s*:\\s*\"\\K[^\"]+'); if [[ \"$FILE\" =~ \\.(js|jsx|ts|tsx)$ ]]; then npx eslint --fix \"$FILE\" 2>/dev/null; npx prettier --write \"$FILE\" 2>/dev/null; fi'",
+        "timeout": 30000
+      },
+      {
+        "command": "bash -c 'echo \"[$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")] $CLAUDE_TOOL_NAME\" >> .claude/audit.log'",
+        "timeout": 5000
+      }
+    ]
+  }
+}
+```
+
+## Environment variables available in hooks
+
+Claude Code exposes several environment variables to hook commands:
+
+| Variable | Description |
+|---|---|
+| `CLAUDE_TOOL_NAME` | Name of the tool being invoked (e.g., `Bash`, `Edit`, `Write`) |
+| `CLAUDE_TOOL_INPUT` | JSON string of the tool's input parameters |
+| `CLAUDE_TOOL_EXIT_CODE` | Exit code of the tool (PostToolUse only) |
+| `CLAUDE_SESSION_ID` | Unique identifier for the current session |
+
+## Exit code conventions
+
+| Exit Code | Meaning |
+|---|---|
+| `0` | Hook succeeded, proceed normally |
+| `2` | Block the action. Claude will see the hook's stderr output as the reason. |
+| Other non-zero | Hook failed (treated as an error but does not block the action) |
+
+## Tips
+
+- **Keep hooks fast.** Hooks run synchronously and block Claude. A 60-second type-check on every edit will make the experience slow. Consider running expensive checks only before commits, not after every edit. See [Token and Cost Management](/research/cost-and-context/) for how slow hooks compound token spend.
+- **Use `timeout` generously but not infinitely.** A hung hook will block Claude until timeout. Set realistic limits.
+- **Test hooks manually first.** Run the command in your terminal with mock environment variables before adding it to settings.
+- **Use `matcher` to narrow scope.** Without a matcher, the hook runs on every tool invocation of that type. Match specific tools to avoid unnecessary work.
+- **Add `.claude/audit.log` to `.gitignore`** if using audit logging.
+- **Complement hooks with skills** for workflows that need detailed multi-step guidance. See [Skills Examples](/templates/skills-examples/) for reusable workflow templates. For the full setup walkthrough, see the [Project Setup Checklist](/guides/project-setup/#setup-7).

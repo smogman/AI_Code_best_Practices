@@ -1,0 +1,92 @@
+---
+interface Props {
+  filename?: string;
+  language?: string;
+}
+
+const { filename, language = 'markdown' } = Astro.props;
+---
+
+<div class="copy-block">
+  {filename && <div class="copy-block-header">
+    <span class="copy-block-filename">{filename}</span>
+  </div>}
+  <div class="copy-block-content">
+    <slot />
+  </div>
+  <button class="copy-button" aria-label="Copy to clipboard">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    </svg>
+    <span class="copy-text">Copy</span>
+  </button>
+</div>
+
+<script>
+  document.querySelectorAll('.copy-block').forEach((block) => {
+    const button = block.querySelector('.copy-button');
+    const content = block.querySelector('.copy-block-content');
+    const copyText = button?.querySelector('.copy-text');
+
+    button?.addEventListener('click', async () => {
+      const text = content?.textContent || '';
+      await navigator.clipboard.writeText(text.trim());
+      if (copyText) {
+        copyText.textContent = 'Copied!';
+        setTimeout(() => {
+          copyText.textContent = 'Copy';
+        }, 2000);
+      }
+    });
+  });
+</script>
+
+<style>
+  .copy-block {
+    position: relative;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 1rem 0;
+  }
+  .copy-block-header {
+    padding: 0.5rem 1rem;
+    background-color: var(--sl-color-gray-6);
+    border-bottom: 1px solid var(--sl-color-gray-5);
+  }
+  .copy-block-filename {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--sl-color-gray-2);
+    font-family: var(--sl-font-mono, monospace);
+  }
+  .copy-block-content {
+    padding: 1rem;
+    font-family: var(--sl-font-mono, monospace);
+    font-size: 0.85rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre-wrap;
+  }
+  .copy-button {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 6px;
+    background: var(--sl-color-bg);
+    color: var(--sl-color-gray-3);
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.15s;
+  }
+  .copy-button:hover {
+    background: var(--sl-color-gray-6);
+    color: var(--sl-color-gray-1);
+  }
+</style>

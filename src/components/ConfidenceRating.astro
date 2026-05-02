@@ -1,0 +1,70 @@
+---
+interface Props {
+  level: 1 | 2 | 3 | 4 | 5;
+  label?: string;
+}
+
+const { level, label } = Astro.props;
+
+const labels: Record<number, string> = {
+  1: 'Low',
+  2: 'Moderate',
+  3: 'Good',
+  4: 'Strong',
+  5: 'Very Strong',
+};
+
+const colors: Record<number, string> = {
+  1: '#ef4444',
+  2: '#f97316',
+  3: '#eab308',
+  4: '#22c55e',
+  5: '#16a34a',
+};
+---
+
+<span class="confidence-rating" title={`Confidence: ${labels[level]} (${level}/5)`}>
+  {label && <span class="confidence-label">{label}</span>}
+  <span class="confidence-dots">
+    {Array.from({ length: 5 }).map((_, i) => (
+      <span
+        class:list={['confidence-dot', { filled: i < level }]}
+        style={i < level ? `background-color: ${colors[level]}` : ''}
+      />
+    ))}
+  </span>
+  <span class="confidence-text" style={`color: ${colors[level]}`}>
+    {labels[level]}
+  </span>
+</span>
+
+<style>
+  .confidence-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+  }
+  .confidence-label {
+    color: var(--sl-color-gray-3);
+    font-weight: 500;
+  }
+  .confidence-dots {
+    display: inline-flex;
+    gap: 3px;
+  }
+  .confidence-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--sl-color-gray-5);
+    transition: background-color 0.2s;
+  }
+  .confidence-dot.filled {
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.15);
+  }
+  .confidence-text {
+    font-weight: 600;
+    font-size: 0.8rem;
+  }
+</style>

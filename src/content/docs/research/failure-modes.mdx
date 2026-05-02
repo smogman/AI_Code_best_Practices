@@ -1,0 +1,557 @@
+---
+title: Failure Modes & Anti-Patterns
+description: What goes wrong with Claude Code and how to prevent it - documented pitfalls from real experience
+---
+
+Every powerful tool has characteristic failure modes -- the ways it breaks when used incorrectly or pushed beyond its limits. Claude Code is no exception. Understanding these failure modes is arguably more valuable than understanding best practices, because a single unrecognized failure mode can erase the productivity gains from a dozen best practices applied correctly.
+
+The following thirteen failure modes are drawn from real-world experience documented by Anthropic, independent practitioners, and the broader Claude Code community. Each is assigned a confidence rating from 1 to 5 based on the breadth and consistency of evidence supporting it. For each failure mode, we cover the symptoms that indicate you have hit it, the root cause, a real-world example, immediate mitigation, and long-term prevention.
+
+import ContentPanels from '../../../components/ContentPanels';
+
+<ContentPanels client:load accentColor="#f87171" items={[
+  { id: "failure-1", title: "The Kitchen Sink Session", description: "Mixing unrelated tasks fills context with irrelevant information. Quality silently degrades.", confidence: 5, date: "2026-04-11", icon: "🍳" },
+  { id: "failure-2", title: "Repeated Correction Pollution", description: "Correcting Claude over and over pollutes context with failed approaches, making each subsequent attempt worse.", confidence: 5, date: "2026-04-11", icon: "🔄" },
+  { id: "failure-3", title: "Premature Implementation", description: "Claude jumps to coding without exploring requirements, making assumptions. Even casual comments trigger unwanted changes.", confidence: 4, date: "2026-04-11", icon: "⚡" },
+  { id: "failure-4", title: "Silent Architectural Decisions", description: "Claude makes architectural choices without surfacing them. Changes go unnoticed during review until something breaks.", confidence: 4, date: "2026-04-11", icon: "🤫" },
+  { id: "failure-5", title: "Futile Thrashing", description: "When blocked, Claude searches exhaustively rather than asking for help. Burns tokens on unsolvable problems.", confidence: 4, date: "2026-04-11", icon: "🌀" },
+  { id: "failure-6", title: "Over-Specified CLAUDE.md", description: "Too-long CLAUDE.md causes instruction-following collapse. Important rules get lost in noise.", confidence: 4, date: "2026-04-11", icon: "📜" },
+  { id: "failure-7", title: "Trust-Then-Verify Gap", description: "Plausible-looking code that doesn't handle edge cases. Claude says things with identical confidence whether certain or guessing.", confidence: 4, date: "2026-04-11", icon: "🎭" },
+  { id: "failure-8", title: "Infinite Exploration", description: "Asking Claude to 'investigate' without scoping. Reads hundreds of files, filling context with irrelevant information.", confidence: 3, date: "2026-04-11", icon: "🔍" },
+  { id: "failure-9", title: "Context Window Degradation", description: "At 70% precision drops, 85% hallucinations increase, 90%+ erratic. Feb-Mar 2026 regression made this worse.", confidence: 4, date: "2026-04-11", icon: "📉" },
+  { id: "failure-10", title: "Cache-Destroying Actions", description: "Switching models, using /rewind, or installing MCP servers mid-session invalidates the prompt cache, eliminating 90% cost savings.", confidence: 4, date: "2026-04-11", icon: "💥" },
+  { id: "failure-11", title: "MCP Response Bloat", description: "MCP tools return 10K+ tokens per call but users need ~500. A few MCP calls can consume 30-50% of context with unused data.", confidence: 3, date: "2026-04-11", icon: "🎈" },
+  { id: "failure-12", title: "AI Code Pattern Inheritance", description: "Claude copies patterns from the existing codebase, including the bad ones. Your worst code becomes the template for all new code.", confidence: 4, date: "2026-05-01", icon: "🧬", isNew: true },
+  { id: "failure-13", title: "Destructive Operation Without Guardrails", description: "LLMs misinterpret negative rules. --dangerously-skip-permissions removes all safety nets, including for rm -rf and git reset --hard.", confidence: 4, date: "2026-05-01", icon: "💣", isNew: true },
+]} />
+
+<div id="failure-1">
+
+## 1. Kitchen Sink Session
+
+**Confidence: 5/5** -- Universally documented, explicitly addressed in Anthropic's own guidance.
+
+### Symptoms
+
+A single Claude conversation becomes sluggish, unfocused, or starts giving responses that seem disconnected from what you just asked. Claude references files or decisions from earlier in the conversation that have nothing to do with the current task. Responses become longer and more hedging, as if Claude is trying to account for too many competing concerns simultaneously. You notice Claude applying conventions or patterns from one part of the session to an unrelated task later in the same session.
+
+### Root Cause
+
+Claude Code's context window is a shared resource across the entire conversation. When you use a single session to tackle multiple unrelated tasks -- fix a bug in the authentication module, then refactor a database query, then write new API endpoints -- the context fills with information from each task. By the time you reach the third task, Claude is carrying context about authentication bugs and database patterns that is not just irrelevant but actively harmful: it competes for attention, may cause cross-contamination of approaches, and accelerates the degradation of Claude's effective reasoning capacity.
+
+The context window is not just a memory limit; it is an attention limit. Every token from a previous unrelated task is a token that dilutes Claude's focus on the current task.
+
+### Real-World Example
+
+A developer starts a session by asking Claude to debug a failing test in the user registration flow. Claude reads several test files, the registration controller, and the user model. The bug is fixed. The developer then asks Claude to implement a new caching layer for the product catalog. Claude proceeds to implement the cache but unconsciously draws patterns from the registration code it just read -- using similar variable naming, error handling patterns, and even referencing the user model's structure when designing the cache schema. The caching implementation works but is subtly shaped by irrelevant context, and Claude's responses are slower because it is reasoning over a much larger context than necessary.
+
+### Mitigation
+
+Use `/clear` between unrelated tasks. This is the single most impactful habit change most Claude Code users can make. Anthropic explicitly recommends it as a core workflow practice. The cost of re-establishing context for a new task is far lower than the cost of degraded performance from context pollution.
+
+### Prevention
+
+Adopt a discipline of "one task, one session." Before starting a new task, ask yourself whether it is genuinely related to what you were just doing. If not, `/clear` and start fresh. Some practitioners go further and use separate terminal sessions for separate tasks, making the boundary physical rather than relying on discipline.
+
+Structure your work in discrete units: "I will use this session to implement the caching layer. When that is done, I will clear and start a new session for the API documentation updates." This planning step takes seconds and prevents minutes or hours of degraded productivity.
+
+</div>
+
+<div id="failure-2">
+
+## 2. Repeated Correction Pollution
+
+**Confidence: 5/5** -- Documented by both Anthropic and experienced practitioners including Boris Cherny.
+
+### Symptoms
+
+You have corrected Claude's approach two or three times, but each correction makes the situation worse rather than better. Claude's responses become increasingly confused, attempting to reconcile your latest correction with the memory of its previous failed attempts. The code starts containing bizarre hybrid approaches -- half of one strategy stitched to half of another. Claude may explicitly reference its earlier mistakes in ways that constrain its ability to think clearly about the problem.
+
+### Root Cause
+
+When you correct Claude and it tries again, the context now contains: the original prompt, the first wrong approach, your correction, the second attempt (which may also be wrong), your second correction, and so on. Each failed approach and correction adds tokens that actively mislead. Claude does not just remember the latest instruction; it sees the entire history and tries to synthesize it. The failed approaches create a kind of gravitational pull that keeps dragging Claude back toward the wrong solution space.
+
+This is fundamentally different from how human correction works. When you correct a human colleague, they can mentally discard the failed approach and think fresh. Claude cannot discard context -- it sees everything and weights everything.
+
+### Real-World Example
+
+A developer asks Claude to implement a sorting algorithm for a custom data structure. Claude's first attempt uses a comparison function that does not handle null values. The developer points out the null handling issue. Claude's second attempt handles nulls but breaks the original comparison logic. The developer corrects again. Claude's third attempt is a confused amalgam that handles nulls in a way that conflicts with the comparison logic from the first attempt, producing code that neither handles nulls correctly nor sorts correctly. Each iteration is further from a working solution, not closer.
+
+### Mitigation
+
+Boris Cherny's rule of thumb: after two failed corrections, stop correcting. Instead, use `/clear` and write a better prompt that incorporates what you learned from the failed attempts. Your new prompt should include the specific constraints that Claude missed, stated upfront rather than as corrections. For example, instead of repeating the debugging session, start fresh with: "Implement a sort for this data structure. The comparison function must handle null values by treating them as less than all non-null values. Here is the data structure definition..."
+
+### Prevention
+
+Invest more time in the initial prompt. If you find yourself frequently correcting Claude, it is a signal that your prompts are under-specified. The cost of writing a detailed prompt upfront is almost always lower than the cost of multiple correction cycles.
+
+When you do need to correct, make the correction as complete and self-contained as possible rather than incremental. Instead of "no, handle nulls too," write "here is the complete specification for the comparison function, including null handling." Give Claude enough context to get it right in one shot rather than iterating.
+
+</div>
+
+<div id="failure-3">
+
+## 3. Premature Implementation
+
+**Confidence: 4/5** -- Well-documented in the DEV.to pitfalls analysis and consistent with observed Claude behavior patterns.
+
+### Symptoms
+
+You describe a problem or mention a potential feature, and Claude immediately starts writing code. There is no discussion of requirements, no exploration of edge cases, no consideration of alternative approaches. Claude produces working code quickly, but it solves a subtly wrong version of the problem. You realize after reviewing that Claude made assumptions about requirements that it never surfaced.
+
+In the most insidious variant, even casual comments trigger implementation. Saying "I wonder if we should add caching to this endpoint" results in Claude immediately modifying the endpoint to add caching, without discussing what should be cached, for how long, or what the invalidation strategy should be.
+
+### Root Cause
+
+Claude's training optimizes for helpfulness, and in a coding context, "helpful" strongly correlates with "producing code." Claude's default bias is toward action. When given an ambiguous request, Claude will choose an interpretation and implement it rather than asking clarifying questions, because producing something feels more helpful than asking questions. This bias is compounded by the fact that Claude's responses are evaluated partly on whether they provide concrete, actionable output.
+
+Additionally, Claude has no natural "exploration" phase. A human developer presented with a new requirement might spend time reading related code, thinking about edge cases, and discussing the approach with colleagues before writing a single line. Claude's conversation model does not have an equivalent exploratory stage unless explicitly prompted to use one.
+
+### Real-World Example
+
+A developer mentions that their API is experiencing slow response times on a particular endpoint. Claude immediately begins implementing query optimization changes -- adding indexes, rewriting queries, and modifying the ORM configuration. The developer had not yet diagnosed whether the slowness was due to the database query, network latency, serialization overhead, or something else entirely. Claude's "fix" optimizes queries that were not the bottleneck, adds unnecessary indexes that slow down writes, and misses the actual problem (an N+1 query in a nested serializer).
+
+### Mitigation
+
+Use Plan Mode (Shift+Tab to toggle) for any non-trivial task. In Plan Mode, Claude discusses the approach without making changes, allowing you to steer the design before any code is written. Alternatively, explicitly instruct Claude: "Do not write any code yet. First, let's discuss the requirements and approach."
+
+Add a rule to your CLAUDE.md: "For any task that touches more than one file, present a plan and get approval before implementing."
+
+### Prevention
+
+Structure your workflow as a two-phase process: discuss first, implement second. Start every significant task with a prompt like "I want to improve the performance of the /users endpoint. Before making any changes, analyze the current implementation and suggest the top three potential bottlenecks." Only after reviewing Claude's analysis should you move to implementation.
+
+Train yourself to be specific. Instead of "add caching to this endpoint," say "I want to discuss adding caching to the /products endpoint. What caching strategies would you consider, and what are the tradeoffs?" The difference in phrasing prevents the premature implementation trigger.
+
+</div>
+
+<div id="failure-4">
+
+## 4. Silent Architectural Decisions
+
+**Confidence: 4/5** -- Documented in the DEV.to pitfalls analysis with specific examples.
+
+### Symptoms
+
+During a code review, you discover that Claude has made structural decisions you did not request and did not notice during the session: changing a module's public API, introducing a new dependency, modifying the inheritance hierarchy, or altering the error handling strategy. The changes are internally consistent and the code works, so they pass a quick review. The problems surface later when another part of the system expects the old behavior, or when the team questions why the architecture changed.
+
+### Root Cause
+
+Claude makes thousands of micro-decisions during any implementation task, and only a fraction of those decisions are visible in its conversational output. When Claude encounters an ambiguity or a design choice, it resolves it silently and moves forward. Unlike a human developer who might flag a decision for team discussion ("I noticed the API client uses a different base URL than the docs suggest -- should I change it?"), Claude simply picks the option that seems most consistent and continues.
+
+This is not a bug in Claude's reasoning -- the decisions are often locally reasonable. The problem is that architectural decisions have project-wide implications, and Claude does not have the context to assess those implications. It sees the immediate code but not the team's design intentions, the deployment constraints, or the downstream dependencies.
+
+### Real-World Example
+
+A developer asks Claude to update an API integration to support a new endpoint. While implementing the change, Claude notices that the API client's base URL does not match the URL in the API documentation. Claude silently updates the base URL to match the docs. The change is buried in a larger diff and passes code review. Two weeks later, the team discovers that the "documentation URL" was for a staging environment, not production. The API client has been making requests to the staging server, causing subtle data inconsistencies that took days to diagnose. The root cause -- Claude's silent URL change -- was discovered only after extensive debugging.
+
+### Mitigation
+
+Add explicit rules to CLAUDE.md requiring Claude to surface decisions: "When you encounter a discrepancy between code and documentation, or between different parts of the codebase, flag it as a question rather than resolving it silently." Include a rule like: "Before changing any public API, module interface, or configuration value, explain the change and wait for approval."
+
+Review diffs carefully, paying special attention to changes you did not explicitly request. The most dangerous changes are the ones that look reasonable -- they pass a quick scan precisely because they seem correct.
+
+### Prevention
+
+Use Plan Mode for any task that might involve architectural decisions. The plan phase is where Claude surfaces assumptions and decision points; the implementation phase is where those decisions get baked into code. By separating the two, you create a checkpoint where silent decisions become visible.
+
+Adopt a "minimal change" principle in your CLAUDE.md: "Make the minimum change necessary to accomplish the task. Do not refactor, rename, or restructure code that is not directly related to the task at hand." This constrains Claude's scope and makes unexpected changes more visible.
+
+Consider using the Writer/Reviewer [multi-agent pattern](/guides/multi-agent-guide/) for sensitive code. A reviewer agent looking at the diff with fresh eyes is more likely to catch unexpected changes than the developer who watched the implementation happen.
+
+</div>
+
+<div id="failure-5">
+
+## 5. Futile Thrashing
+
+**Confidence: 4/5** -- Documented in the DEV.to pitfalls analysis and confirmed by Addy Osmani's work on agent failure patterns.
+
+### Symptoms
+
+Claude has been working on a problem for an unusually long time. You check in and find that it has read dozens of files, tried multiple approaches, undone its own changes, and tried again -- all without asking for help. The context window is filling rapidly with exploration output, and Claude is no closer to a solution. In extreme cases, Claude starts making changes, reverting them, and making the same changes again in a loop.
+
+### Root Cause
+
+When Claude encounters a problem it cannot solve with the information available, its default behavior is to search for more information rather than acknowledge the gap. It will read more files, try more approaches, and explore more of the codebase, burning through context and tokens on what is fundamentally an unsolvable problem (given the available information). Claude does not have a well-calibrated sense of when to stop exploring and ask for help.
+
+This is partly because Claude's training rewards persistence and helpfulness. Saying "I cannot figure this out; please help" feels like a failure state that the model is trained to avoid. The result is that Claude will exhaust its context window trying to solve a problem that a five-second human intervention could have resolved.
+
+### Real-World Example
+
+A developer asks Claude to fix a test that is failing in CI but passing locally. Claude reads the test file, the source file, the CI configuration, the test runner configuration, environment variable definitions, Docker configuration, and eventually starts reading unrelated test files looking for patterns. After consuming most of the context window, Claude still has not identified the root cause because the issue is an environment variable that is set in the CI pipeline configuration outside the repository. A human who knows the CI setup could have pointed Claude to the right file in seconds.
+
+### Mitigation
+
+Scope investigations explicitly: "Look at these three files and determine if the issue is in the test setup. If you cannot identify the cause from these files, stop and tell me what you have found so far." Setting boundaries on exploration prevents unbounded thrashing.
+
+Use subagents for investigation tasks (see [Subagent Definition Examples](/templates/agents-examples/) for ready-to-use configurations). A subagent has its own context window, so even if it thrashes, it does not pollute the parent session's context. When the subagent reports back, only the findings (not the entire exploration) enter the parent context.
+
+### Prevention
+
+Add a CLAUDE.md rule: "If you cannot solve a problem after examining 5 files or trying 2 approaches, stop and summarize what you have found and what information you think is missing." This gives Claude explicit permission to stop and ask for help, counteracting the training bias toward persistence.
+
+Watch for the warning signs: if Claude's output starts containing phrases like "Let me try another approach" or "Let me check one more file," it may be entering a thrashing loop. Intervene early rather than waiting for it to exhaust the context.
+
+</div>
+
+<div id="failure-6">
+
+## 6. Over-Specified CLAUDE.md
+
+**Confidence: 4/5** -- Documented by both Anthropic and HumanLayer, with supporting evidence from instruction-following research.
+
+### Symptoms
+
+Claude consistently ignores specific rules in your CLAUDE.md. You add a rule, Claude follows it for a session or two, and then starts violating it again. You add more rules to address the violations, and the problem gets worse. Claude's behavior becomes inconsistent -- following some rules reliably while apparently not seeing others. You may notice that Claude follows rules near the top of the file more reliably than rules near the bottom.
+
+### Root Cause
+
+Large language models exhibit instruction-following degradation as the number of instructions increases. Each additional instruction competes for attention with every other instruction. Beyond a certain threshold, adding more rules does not increase compliance -- it decreases compliance with the existing rules by diluting the attention available for each one.
+
+The dynamic is counterintuitive: you add a rule to fix a problem, and the rule makes other problems worse. The file grows, each rule gets less attention, compliance drops across the board, and you respond by adding more rules. The cycle is self-reinforcing.
+
+This is compounded by the fact that CLAUDE.md loads into the context window at the start of every interaction. A 300-line CLAUDE.md consumes tokens that could otherwise be used for the task at hand, reducing Claude's effective working memory.
+
+### Real-World Example
+
+A team starts with a focused 50-line CLAUDE.md. Over months, every time Claude does something wrong, they add a rule to prevent it. The file grows to 400 lines covering everything from variable naming conventions to deployment procedures to meeting notes. Claude begins ignoring the most important rules -- like "always run tests before completing a task" -- because they are buried among dozens of less critical instructions. The team responds by making the testing rule bold and adding it in multiple places, which only adds more noise to an already noisy file.
+
+### Mitigation
+
+If Claude is not following a rule that is in your CLAUDE.md, do not add more rules. Instead, audit the file. The [Writing CLAUDE.md Guide](/guides/claude-md-guide/) covers how to structure and prioritize rules for maximum compliance. For each line, ask: "Does this meaningfully change Claude's behavior in a way that matters?" Remove anything that does not meet that bar. Move reference information (API documentation, deployment procedures, architectural overviews) to separate files that Claude can read on demand rather than loading into every session.
+
+### Prevention
+
+Set a line budget for your CLAUDE.md and treat it as a hard constraint. When you add a new rule, remove one that is less important. This forces continuous prioritization and prevents the file from growing unboundedly.
+
+Structure the file with the most critical rules first. Due to attention patterns in language models, instructions near the beginning of the context receive more reliable attention than those in the middle or end.
+
+Periodically (monthly or quarterly) review the entire CLAUDE.md with fresh eyes. Delete rules that address problems you have not seen recently, consolidate redundant rules, and ensure the file still reflects your actual priorities rather than a historical accumulation of one-off fixes.
+
+</div>
+
+<div id="failure-7">
+
+## 7. Trust-Then-Verify Gap
+
+**Confidence: 4/5** -- Documented by Anthropic, the DEV.to analysis, and supported by the ACM 2025 study on LLM code quality.
+
+### Symptoms
+
+Claude-generated code looks correct on first reading. It follows the patterns of the codebase, uses appropriate naming, and handles the obvious cases. But testing reveals edge cases that are not handled: null inputs, empty collections, concurrent access, network failures, boundary values. Claude's conversational output expresses identical confidence whether it is certain about an implementation detail or guessing. There is no linguistic signal distinguishing "I know this is correct" from "this seems like it should work."
+
+### Root Cause
+
+Claude generates plausible code by pattern-matching against its training data and the current context. For common patterns, this produces correct code reliably. For edge cases, unusual configurations, or domain-specific requirements, Claude fills in the gaps with its best guess -- but presents that guess with the same confidence as established fact.
+
+An ACM study published in 2025 found that LLM-generated code contains 1.75x more logic errors than human-written code. These are not syntax errors or obvious bugs -- they are logic errors, the kind that look correct on inspection and fail only under specific conditions. This aligns with the observation that Claude's code is most dangerous when it looks most convincing.
+
+The trust gap is amplified by the speed of Claude's output. When a human developer writes code slowly, there is time for the reviewer to think about each line. When Claude produces 200 lines in seconds, the reviewer's default is to trust the output because reviewing it carefully at that speed feels like it negates the productivity benefit.
+
+### Real-World Example
+
+A developer asks Claude to implement a rate limiter for an API endpoint. Claude produces a clean implementation using a sliding window algorithm with Redis. The code handles the happy path correctly, follows the team's patterns, and includes reasonable logging. In production, the rate limiter fails silently when Redis is unavailable (returning "allow" instead of "deny" as a safe default), does not handle clock skew between application servers, and has an off-by-one error in the window calculation that allows one extra request per window. Each of these issues is a logic error that passes a superficial code review because the code looks well-structured and idiomatic.
+
+### Mitigation
+
+Never trust Claude's code without verification, regardless of how clean it looks. Establish a verification protocol appropriate to the task's risk level:
+
+- **Low risk:** Claude writes tests alongside the implementation; tests must pass.
+- **Medium risk:** Claude writes tests, you review the test cases for completeness, and you add edge case tests.
+- **High risk:** You specify the test cases, Claude implements them, and you verify the implementation against the tests line by line.
+
+When Claude expresses certainty about something you cannot independently verify, treat it as a hypothesis rather than a fact. Ask Claude to show its reasoning or provide evidence.
+
+### Prevention
+
+Add to your CLAUDE.md: "When implementing functions that handle external input, enumerate the edge cases (null, empty, invalid, concurrent, timeout) and handle each explicitly." This forces Claude to think about edge cases rather than relying on its pattern-matching default.
+
+Build a culture of "Claude writes the code, I verify the logic." Accept the speed benefit on the writing side and invest the saved time on the verification side. The net productivity gain is still substantial, but the error rate drops dramatically.
+
+For critical code paths, use the Writer/Reviewer multi-agent pattern. A separate Claude session reviewing the code catches many of the logic errors that the writing session introduces, because the reviewer is pattern-matching against "common bugs" rather than "common implementations."
+
+</div>
+
+<div id="failure-8">
+
+## 8. Infinite Exploration
+
+**Confidence: 3/5** -- Documented by Anthropic, though less widely discussed than other failure modes.
+
+### Symptoms
+
+You ask Claude to "investigate" or "look into" something without clear boundaries. Claude begins reading files -- and does not stop. It reads the file you mentioned, then related files, then files that import those files, then configuration files, then test files, then documentation. The context window fills with file contents, and Claude's eventual analysis is vague because it has too much information and too little focus.
+
+### Root Cause
+
+"Investigate" and "look into" are unbounded directives. Claude interprets them as "gather as much information as possible about this topic," which in a codebase with thousands of files means reading hundreds of files before concluding that it has enough context. There is no natural stopping point because there is always one more related file that might be relevant.
+
+This is different from Futile Thrashing (failure mode 5) in that Claude is not stuck -- it is successfully finding and reading related information. The problem is that the information gathering is unbounded and eventually counterproductive, filling the context with marginally relevant details that crowd out the essential findings.
+
+### Real-World Example
+
+A developer asks Claude to "investigate why the user dashboard is slow." Claude reads the dashboard component, then the API route it calls, then the database query, then the ORM model, then the database migration history, then the index definitions, then other components that use the same API route, then the API middleware, then the caching layer, then the Redis configuration. By the time Claude responds, it has read 40+ files and the context is 60% full. Claude's analysis mentions a dozen possible contributing factors but does not prioritize them, because it has gathered too much information to synthesize clearly.
+
+### Mitigation
+
+Scope every investigation request: "Look at the dashboard component and the API route it calls. Identify the three slowest operations and explain why they are slow. Do not read other files unless I ask you to." Explicit boundaries prevent unbounded exploration.
+
+Use subagents for investigation tasks. Give the subagent a narrow scope and a specific question to answer. The subagent can explore freely within its own context without polluting the parent session.
+
+### Prevention
+
+Add a CLAUDE.md rule: "When investigating a problem, read at most 5 files before providing an initial assessment. If more investigation is needed, summarize your findings so far and ask which direction to explore further."
+
+Replace vague verbs with specific ones. Instead of "investigate the dashboard performance," say "profile the /api/dashboard endpoint and identify which database query takes the longest." The more specific the directive, the less room Claude has for unbounded exploration.
+
+</div>
+
+<div id="failure-9">
+
+## 9. Context Window Degradation
+
+**Confidence: 4/5** -- Documented by Sankalp and consistent with Anthropic's guidance on context management, with a specific regression observed in early 2026.
+
+### Symptoms
+
+Claude's responses become noticeably less precise as a session progresses. Early in the conversation, Claude follows instructions carefully and produces clean code. As the context fills, responses become more generic, less attentive to project-specific patterns, and more prone to hallucination. At extreme context utilization (85%+), Claude may fabricate API endpoints, reference functions that do not exist, skip over problems with a brief "this should work," or generate commit SHAs that have no relation to the actual repository.
+
+The degradation is gradual, which makes it dangerous: there is no sharp cutoff that signals "stop here." Instead, quality erodes progressively, and by the time you notice, you may have already accepted several responses produced at degraded quality.
+
+### Root Cause
+
+Language models have a finite context window, and their effective performance degrades before that window is technically full. Research and practical experience have identified rough thresholds:
+
+- **At 70% context utilization:** Precision begins to drop. Claude starts missing details from earlier in the conversation and may subtly deviate from established patterns.
+- **At 85% context utilization:** Hallucination rates increase measurably. Claude begins generating plausible-sounding but incorrect information to fill gaps in its degraded understanding of the conversation.
+- **At 90%+ context utilization:** Behavior becomes erratic. Claude may contradict earlier statements, produce code that conflicts with previous implementations in the same session, or fail to follow explicit instructions.
+
+A specific regression was observed during February-March 2026 related to an `effort=85` default setting that exacerbated these effects. Claude exhibited a "rush to completion" behavior at high context utilization: fabricating APIs rather than reading them, skipping problems rather than solving them, hallucinating Git SHAs instead of looking them up, and generally taking shortcuts to produce output quickly rather than accurately. This behavior was tied to the effort parameter causing Claude to conserve reasoning effort precisely when the filled context demanded more effort, not less.
+
+### Real-World Example
+
+A developer works with Claude on a complex refactoring session that spans multiple modules. For the first several interactions, Claude's work is excellent: it follows the established patterns, handles edge cases, and writes clean tests. Around the 75% context mark, Claude starts making small mistakes: using the old function signature after agreeing to use the new one, forgetting a constraint discussed earlier in the session. By 90% context, Claude generates a test file that imports from a module path that does not exist -- it has hallucinated a file path based on the project's naming conventions rather than actual files it read earlier. The developer, who has been trusting Claude's output based on the quality earlier in the session, does not notice the hallucinated import until the test fails in CI.
+
+### Mitigation
+
+Monitor context utilization actively (see [Cost & Context Management](/research/cost-and-context/) for detailed degradation thresholds and monitoring strategies). When you approach 70%, consider whether to `/compact` (which summarizes the conversation to free context) or `/clear` (which starts a new session). The right choice depends on whether the current context contains information that would be expensive to re-establish.
+
+Use `/compact` proactively at around 50-60% context, before degradation begins. Compacting early preserves the most important context while freeing space for continued work. Waiting until 80% to compact means the compaction itself happens at degraded quality.
+
+If you notice any of the erratic behaviors described above (fabricated APIs, hallucinated paths, skipped problems), stop immediately. Do not try to correct Claude within the current session. Clear the context and start fresh.
+
+### Prevention
+
+Structure your work to fit within a single context window. Break large tasks into sub-tasks, each of which can be completed in a focused session. After completing each sub-task, clear the context and start the next one fresh.
+
+Add a CLAUDE.md rule: "If context utilization exceeds 70%, proactively suggest compacting or starting a new session. Do not continue generating code at high context utilization without acknowledging the risk."
+
+For long-running work, use the subagent pattern to offload research and exploration to agents with their own context windows. This keeps the parent session's context focused on decision-making and code review rather than filling it with exploration output.
+
+Be aware of effort parameter settings. If your configuration sets a default effort level below 100, Claude may conserve reasoning at precisely the moments when thorough reasoning is most critical. For complex tasks, consider ensuring the effort parameter is set to maximum.
+
+</div>
+
+<div id="failure-10">
+
+## 10. Cache-Destroying Actions
+
+**Confidence: 4/5** -- Documented with specific cost data across community sources. Mechanics confirmed by Anthropic's pricing documentation.
+
+### Symptoms
+
+Your session suddenly becomes slower and more expensive despite no change in task complexity. The status line may not indicate anything unusual because context usage has not changed -- what has changed is that every subsequent API call is paying full price instead of cached price. If you are monitoring costs with `/cost`, you may notice a step-change increase in per-turn cost mid-session.
+
+### Root Cause
+
+The prompt cache stores computational work for unchanged content at the beginning of each API call. Three common actions invalidate this cache entirely:
+
+1. **Switching models mid-session.** Caches are model-specific. Opus and Sonnet cannot share cached content. Switching from one to the other throws away the entire cache and forces a full rebuild.
+
+2. **Using /rewind.** This breaks the cache on all content after the rewind point. The conversational history changes, so every subsequent API call must recompute from that point forward.
+
+3. **Installing MCP servers or plugins mid-session.** Tool definitions live at the very start of the prompt. Adding or removing tools changes these definitions, which invalidates all downstream caches.
+
+### The Cost Impact
+
+In a well-optimized session, cached input tokens cost 10% of uncached input tokens. Destroying the cache means a 10x increase in input costs for all subsequent turns. A 20-turn session with 100K stable context tokens saves 84% through caching. Breaking the cache halfway through effectively doubles the session's total cost.
+
+### Prevention
+
+Decide which model you will use before starting the session and stick with it. If you need to switch models, start a fresh session instead of switching mid-conversation. Avoid using /rewind when possible -- if you need to undo something, use git to revert the changes and ask Claude to try a different approach rather than rewinding the conversation. Install all MCP servers and plugins before starting substantive work.
+
+**Sources:** kitaekatt ([Mastering Cache Hits in Claude Code](https://dev.to/kitaekatt/mastering-cache-hits-in-claude-code-5648)).
+
+</div>
+
+<div id="failure-11">
+
+## 11. MCP Response Bloat
+
+**Confidence: 3/5** -- Single detailed source with concrete metrics. Pattern is consistent with general context management principles.
+
+### Symptoms
+
+Context usage climbs rapidly after a few MCP tool calls. You have not read many files or written much code, but the context window is 40-60% full. Subsequent Claude responses become less precise because the context is dominated by large JSON payloads from MCP tools that you only needed a small slice of.
+
+### Root Cause
+
+MCP tools are designed to return comprehensive data -- deployment lists, log entries, database query results, monitoring dashboards. A single MCP call can return 10,000+ tokens of structured data. But users typically need only around 500 tokens of that data, roughly 5% of what gets loaded into context. Three or four MCP calls can consume 30-50% of the context window with data that is never referenced again.
+
+### Real-World Example
+
+Querying a Vercel MCP server for deployment status returns all 20 deployments with full metadata. You needed only the 2 failed deployments. The remaining 18 successful deployments consumed 9,000 tokens of context for zero value.
+
+### Mitigation
+
+The most effective mitigation is externalizing MCP responses to temporary files rather than keeping them in conversation context. The workflow:
+
+1. Invoke the MCP tool
+2. Write the full response to a timestamped JSON file in `/tmp/`
+3. Use a dedicated Skill to parse and filter the response
+4. Return a compact summary (~500 tokens) to the conversation
+5. Access the full file later if needed for debugging
+
+This achieves 95-97% token savings -- from 10,100 tokens to 300-500 tokens per MCP call. A dedicated Skill at `.claude/skills/mcp-response-analyzer/` can automate this pattern.
+
+### Prevention
+
+Build MCP response handling into your workflow from the start. When connecting a new MCP server, test what it returns and measure the token cost. If a typical response exceeds 5,000 tokens, implement the file-based externalization pattern before using it in production sessions.
+
+**Sources:** Pierre-Emmanuel Féga ([Optimizing Token Efficiency in Claude Code Workflows](https://medium.com/@pierreyohann16/optimizing-token-efficiency-in-claude-code-workflows-managing-large-model-context-protocol-f41eafdab423)).
+
+</div>
+
+<div id="failure-12">
+
+## 12. AI Code Pattern Inheritance
+
+**Confidence: 4/5** -- Documented in a 478-comment r/webdev retrospective audit and a 138-comment r/ExperiencedDevs thread, with independent confirmation across multiple practitioners.
+
+### Symptoms
+
+Code produced by Claude looks plausible on inspection: it compiles, passes the happy path, and surface-matches your codebase conventions. But closer reading reveals structural choices that no experienced developer would make: five levels of nested conditionals where guard clauses would do, try-catch blocks that swallow exceptions and log nothing useful, and functions 2-10x longer than necessary because Claude duplicated existing code rather than extracting a shared helper.
+
+The harder symptom to spot plays out over months. The codebase loses coherence. There is no consistent "thread" to follow. Reading AI-generated code is different from reading a colleague's code, where even idiosyncratic choices form a recognizable pattern over time. With AI code, every section must be understood from scratch because there is no intentionality behind the choices, just statistical continuation of whatever patterns were nearby.
+
+### Root Cause
+
+Claude generates code by pattern-matching against its training data and the existing codebase it has read in the current session. It does not reason about design intent. It approximates the most likely continuation of the patterns it has observed. If your codebase contains technical debt (copy-pasted code, inconsistent error handling, over-engineered abstractions), those patterns become Claude's reference points. Your worst code becomes the model for new code.
+
+A developer who ran a six-month retrospective put it precisely: "Claude Code can't distinguish between old and new patterns. It finds something, copies it, and your worst code becomes the template for new code."
+
+The top comment in the r/webdev audit crystallized the economic reality: "LLMs have made the cost of code cheaper, but the cost of engineering has stayed the same." You get more code faster. The engineering judgment about which patterns to copy and which to replace still requires a human.
+
+### Real-World Example
+
+A team ran an AI-assisted sprint for six months and merged 340 PRs. A retrospective audit found try-catch wrapped around console.log with no actual error handling, deeply nested conditionals that could have been guard clauses, and a senior developer's code stylistically indistinguishable from a junior's because both used the same underlying model. The individual PRs looked reasonable in isolation. The pattern only became visible months later.
+
+The OP described what made it hard to catch: "the individual PRs looked fine in isolation, each one made sense on its own. It was only when I read six months of them back to back that the pattern became obvious. It's like how you don't notice someone gaining weight when you see them every day but then you look at a photo from January."
+
+### Mitigation
+
+Add explicit anti-patterns to your CLAUDE.md:
+
+```markdown
+# Code Quality Rules
+- Prefer early returns and guard clauses over deep nesting
+- Error handling must log useful context: the error, the input, and the operation
+- Do NOT copy patterns from code that looks old or inconsistent with surrounding files
+- When the same logic appears three times, extract it
+```
+
+Schedule periodic refactor sessions to clean up structural debt before it compounds. One experienced developer's practical rule: at least one session per week where you write code by hand, which keeps your mental model of the codebase current and is the only reliable way to catch pattern inheritance errors before they accumulate.
+
+### Prevention
+
+Treat AI output as a first draft requiring the same scrutiny as a junior developer's PR. The velocity gains are real, but they shift the bottleneck from writing to reviewing. Invest the saved time on the writing side into deeper review on the reading side.
+
+Provide positive reference patterns in your prompts: "Follow the pattern used in src/users/handlers/create-user.ts, not the older pattern in src/auth/login.ts." This steers Claude toward your best code rather than its nearest match.
+
+For teams, the r/webdev audit offers a structural fix: agree as a team on which files represent "canonical" patterns, and reference them explicitly in CLAUDE.md. This narrows the pattern space Claude draws from.
+
+**Sources:** Ambitious-Garbage-73 ([I audited 6 months of PRs](https://reddit.com/r/webdev/comments/1sin68g)), ImTheRealDh + community ([Disconnected from the codebase](https://reddit.com/r/ExperiencedDevs/comments/1sc1y5f)).
+
+</div>
+
+<div id="failure-13">
+
+## 13. Destructive Operation Without Guardrails
+
+**Confidence: 4/5** -- Documented in a 249-comment r/ClaudeCode incident report. Community-validated mitigations. Independent corroborating incidents reported in comments.
+
+### Symptoms
+
+Files or data disappear that should not have been touched. Git history has been rewritten without your intent. Force operations executed in the wrong scope. In the most severe cases, the destructive action happened immediately after Claude internally flagged it as potentially risky and then proceeded anyway.
+
+### Root Cause
+
+Two factors compound.
+
+**Negation handling in language models.** LLMs process language statistically, and negations are harder to follow reliably than positive statements. "Do not delete any data" is less reliable than "preserve all existing data." This is not a bug in a specific model. It is a fundamental property of how language models work. Instructions phrased as prohibitions are weaker than instructions phrased as requirements.
+
+**`--dangerously-skip-permissions` removes all guardrails.** When this flag is active, Claude can execute any command without asking for permission. Hooks still run. Auto mode still runs. Explicit instructions still apply. But the safety net of "are you sure?" is gone. One misinterpreted negation plus skip-permissions means immediate, irreversible action.
+
+### Real-World Example
+
+A developer asked Claude to remove old compressed files from an archive directory, explicitly adding "do not remove any data." Claude deleted 202GB of archive files. The conversation log showed Claude had internally flagged the action as potentially risky before proceeding anyway. The data was unrecoverable.
+
+The pattern appears consistently across community reports: Claude running `rsync --delete` when the intent was `rsync --archive`, executing `git clean -f` when asked to "clean up" a branch, and force-merging with `--force` when asked to "merge this."
+
+One commenter summarized the session dynamic that makes this dangerous: "When you're tired you tend to let go of the ropes." Skip-permissions mode removes the prompts that would otherwise give you a chance to catch the mistake before it executes.
+
+### Mitigation
+
+Set up a `PreToolUse` hook that blocks destructive patterns. One community member shared a complete implementation that blocks `rm`, `rm -f/-rf`, `rmdir`, `git clean -f`, `git checkout --`, and `git reset --hard`, and reports what it caught and why:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "~/.claude/hooks/destructive-guard.sh" }]
+      }
+    ]
+  }
+}
+```
+
+Add `disableBypassPermissionsMode: "disable"` to your user settings to hard-disable skip-permissions mode at the configuration level, regardless of how Claude Code is invoked. Note: this setting fully takes effect in managed (enterprise) settings; in user settings it signals intent, and the hook adds the enforcement layer on top.
+
+Many experienced practitioners alias `rm` to move files to `/tmp/` instead of permanent deletion. This is standard developer hygiene that predates AI tools but becomes especially valuable when an AI is issuing the commands.
+
+### Prevention
+
+Keep backups in storage Claude cannot reach. This is the single most important prevention. A backup that Claude can write to is a backup Claude can delete. Separate storage, separate credentials.
+
+Use positive language in instructions rather than prohibitions. "Keep all existing files and add the new ones" outperforms "don't delete anything." When you need to express a constraint, frame it as what should exist after the operation, not what should not happen during it.
+
+Scope Claude's file access via settings permissions. Grant read access broadly, require explicit approval for any write operations outside the current project directory. This way, a misinterpreted command outside the project scope will prompt rather than execute.
+
+**Sources:** semiramist ([Claude Code deleted my 202GB archive](https://reddit.com/r/ClaudeCode/comments/1sbpfdl)), Anthropic ([Automate Workflows with Hooks](https://code.claude.com/docs/en/hooks-guide)).
+
+</div>
+
+---
+
+## Failure Modes Reference
+
+| # | Failure Mode | Confidence | Primary Cause | Key Prevention |
+|---|---|---|---|---|
+| 1 | Kitchen Sink Session | 5/5 | Mixing unrelated tasks | `/clear` between tasks |
+| 2 | Repeated Correction Pollution | 5/5 | Failed approaches in context | Clear after 2 failed corrections |
+| 3 | Premature Implementation | 4/5 | Bias toward action | Plan Mode, discussion-first |
+| 4 | Silent Architectural Decisions | 4/5 | Unspoken assumptions | Require decision documentation |
+| 5 | Futile Thrashing | 4/5 | No stopping heuristic | Scope investigations, subagents |
+| 6 | Over-Specified CLAUDE.md | 4/5 | Instruction-following degradation | Line budget, periodic pruning |
+| 7 | Trust-Then-Verify Gap | 4/5 | Uniform confidence, pattern matching | Always provide verification |
+| 8 | Infinite Exploration | 3/5 | Unbounded directives | Scope narrowly, use subagents |
+| 9 | Context Window Degradation | 4/5 | Finite attention, effort defaults | Monitor context, compact early |
+| 10 | Cache-Destroying Actions | 4/5 | Model switches, /rewind, MCP installs | Commit to model, avoid /rewind |
+| 11 | MCP Response Bloat | 3/5 | Oversized MCP tool responses | Externalize to files, filter with Skills |
+| 12 | AI Code Pattern Inheritance | 4/5 | Pattern-matching on codebase debt | Explicit anti-patterns in CLAUDE.md, regular refactors |
+| 13 | Destructive Operation Without Guardrails | 4/5 | Negation misinterpretation, skip-permissions | PreToolUse hooks, positive language, scoped permissions |
+
+The most effective defense against all thirteen failure modes is awareness. Once you know what to look for, the symptoms become obvious early enough to intervene before significant damage is done. The second most effective defense is a well-crafted (but concise) CLAUDE.md that includes rules addressing the failure modes most relevant to your workflow -- the [consensus practices](/research/consensus-practices/) document the positive counterparts to many of these failure modes, and the [Project Setup Checklist](/guides/project-setup/) helps you configure defenses from day one.

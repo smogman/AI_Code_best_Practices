@@ -1,0 +1,614 @@
+---
+title: Cost & Context Management
+description: Token optimization, pricing strategies, and context window management - the economics of Claude Code
+---
+
+Claude Code is not free software. Even on subscription plans, every interaction has a cost -- measured in tokens, in context window capacity, in developer attention, and ultimately in dollars. Understanding the economics of Claude Code is essential because the same practices that reduce cost also improve output quality. A session running at 90% context capacity produces worse code than a lean session at 30%, and it costs more to get there. Cost management and quality management are the same discipline.
+
+This page covers the full economic picture: how pricing works across tiers, how the context window degrades and what that costs you, concrete strategies for minimizing token waste, and the tooling ecosystem that makes cost visible and manageable. The data here is drawn from Anthropic's official documentation, community tooling projects, and practitioner experience reports from teams running Claude Code in production.
+
+import ContentPanels from '../../../components/ContentPanels';
+
+<ContentPanels client:load accentColor="#fbbf24" items={[
+  { id: "cost-1", title: "Pricing Tiers and Expected Costs", description: "Subscription plans, API pay-per-token, and real-world cost data. Average ~$13/dev/day, 90% under $30/day.", icon: "💳" },
+  { id: "cost-2", title: "Context Window Mechanics", description: "What loads into context, the degradation curve (70%/85%/90% thresholds), auto-compaction, prompt caching numbers, and cache-destroying anti-patterns.", icon: "🧠", isNew: true },
+  { id: "cost-3", title: "Token Optimization Strategies", description: "Seven strategies ordered by impact: task specificity, Plan Mode, session management, manual compaction, subagents, monitoring, and /btw.", icon: "🎯" },
+  { id: "cost-4", title: "CLAUDE.md Cost Impact", description: "The compounding cost of bloated CLAUDE.md files, size guidelines, and progressive disclosure with @imports.", icon: "📄" },
+  { id: "cost-5", title: "Model Selection: Opusplan Strategy", description: "Use Opus for planning (5-15% of tokens) and Sonnet for implementation. Get Opus quality at 1.2-1.5x Sonnet cost.", icon: "🔀" },
+  { id: "cost-6", title: "Agent Teams Token Usage", description: "The 7x multiplier, optimal team size (3-5), token budgets, iteration limits, and kill criteria for agent management.", icon: "👥" },
+  { id: "cost-7", title: "Cost Monitoring Tools", description: "Built-in commands (/usage, /cost, /stats), community dashboards (ccflare, CC Usage, Claudex), and real-time monitoring setup.", icon: "📊" },
+  { id: "cost-8", title: "Practical Cost Budgets", description: "Per-developer daily budgets by tier, the cost optimization checklist, and the ROI perspective on spending.", icon: "💰" },
+]} />
+
+<div id="cost-1">
+
+## Pricing Tiers and Expected Costs
+
+Claude Code is available through three distinct pricing models, each with different economics and different implications for how you should manage usage.
+
+### Subscription Plans
+
+| Plan | Monthly Cost | Claude Code Access | Best For |
+|---|---|---|---|
+| Claude Pro | $20/month | Limited usage, throttled during peak demand | Light usage, occasional coding tasks |
+| Claude Max | $100/month | Unlimited access, priority during peak demand | Daily professional development work |
+
+Claude Pro provides access to Claude Code but with meaningful limitations. During periods of high demand, Pro users may experience throttling or temporary unavailability. For developers who use Claude Code as a primary tool throughout the workday, these interruptions can be disruptive enough to justify the step up to Max.
+
+Claude Max removes the usage ceiling entirely. For teams evaluating adoption, the key question is whether the productivity gain justifies $100/month per developer. Given that the average API-based cost is $13/day per developer (roughly $280/month on working days), Max is actually cheaper than API access for most usage patterns, with the added benefit of predictable billing.
+
+### API Access (Pay-Per-Token)
+
+API access charges per token, with rates varying by model:
+
+| Model | Input Tokens | Output Tokens | Cached Input | Notes |
+|---|---|---|---|---|
+| Claude Sonnet | Lower rate | Lower rate | Discounted | Default model for most tasks |
+| Claude Opus | Higher rate | Higher rate | Discounted | Stronger reasoning, significantly more expensive |
+
+The exact per-token rates change over time and vary by contract, but the key relationship is consistent: **Opus costs substantially more than Sonnet per token.** This price differential is the foundation of the opusplan strategy discussed later in this page.
+
+### Real-World Cost Data
+
+Anthropic publishes baseline cost figures that serve as the industry reference point for budgeting:
+
+> **Average cost: ~$13 per developer per day**, translating to **$150-250 per developer per month** depending on usage intensity. **90% of users stay under $30 per day.**
+
+These figures assume typical usage patterns -- a mix of planning, implementation, and review tasks across a normal workday. Outliers exist in both directions: a developer doing light code review might spend $3-5/day, while someone orchestrating complex multi-agent workflows with Opus could exceed $50/day.
+
+The Code Review plugin provides a useful benchmark for discrete task costs:
+
+> **Code review costs $15-25 per review**, scaling with pull request size. This achieves an under-1% false positive rate, making it cost-effective compared to the developer time required for equivalent manual review depth.
+
+For teams building cost models, a reasonable budget framework looks like this:
+
+| Developer Profile | Estimated Daily Cost | Monthly Estimate | Notes |
+|---|---|---|---|
+| Light user (reviews, small fixes) | $3-8 | $60-170 | Mostly Sonnet, short sessions |
+| Standard user (feature development) | $10-18 | $200-380 | Mix of planning and implementation |
+| Heavy user (multi-agent, complex tasks) | $20-40 | $420-840 | Agent teams, Opus usage, long sessions |
+| Code review (per review) | $15-25 | Varies | Scales with PR size and complexity |
+
+</div>
+
+<div id="cost-2">
+
+## Context Window Mechanics
+
+The context window is the total amount of text -- your messages, Claude's responses, file contents, command output, system prompts, CLAUDE.md contents -- that the model can process at once. Understanding how it works mechanically is essential because context window management is simultaneously the most important quality lever and the most important cost lever available to you.
+
+### What Loads Into Context
+
+Everything loads into context. This is not an exaggeration -- it is a literal description of how the system works:
+
+- **System prompt**: Claude Code's built-in instructions (~50 directives)
+- **CLAUDE.md files**: Project, directory, and user-level configuration files
+- **Your messages**: Every prompt you have sent in the current session
+- **Claude's responses**: Every response Claude has generated
+- **File reads**: The full content of every file Claude has read during the session
+- **Command output**: stdout and stderr from every command Claude has run
+- **Tool results**: Output from every tool invocation (search results, diffs, etc.)
+- **Error messages**: Failed commands, test failures, linter output
+
+A single session that reads 15 files, runs a test suite, and iterates on two bugs can easily consume 60-80% of the context window before you get to your third question.
+
+### The Degradation Curve
+
+Context window degradation is not linear. It follows a curve with distinct phases, each with characteristic symptoms:
+
+| Context Usage | Effect | Symptoms |
+|---|---|---|
+| 0-50% | Normal operation | Accurate responses, good instruction following |
+| 50-70% | Subtle degradation | Slightly less precise, may miss minor details |
+| **~70%** | **Precision drops** | Starts missing constraints, less accurate file references |
+| **~85%** | **Hallucination increase** | Makes up function names, invents API parameters, misremembers earlier context |
+| **90%+** | **Erratic behavior** | Forgets instructions, contradicts itself, produces code that ignores stated constraints |
+
+> At roughly **70% context capacity**, precision begins to drop. At **85%**, hallucination rates increase measurably. Beyond **90%**, behavior becomes erratic -- Claude may forget instructions from earlier in the conversation, contradict itself, or produce code that ignores constraints you explicitly stated.
+
+The underlying mechanism is attention distribution. Transformer models distribute attention across the entire context window. As the window fills, each individual piece of information receives proportionally less attention. Instructions from the beginning of a long conversation compete with hundreds of lines of code output, tool results, and error messages for the model's focus. At 90% capacity, a critical instruction from your first message is competing with thousands of tokens of accumulated noise.
+
+### Auto-Compaction
+
+Claude Code includes an auto-compaction mechanism that triggers when the context window approaches its limit. When auto-compaction fires, Claude summarizes the conversation so far and continues with the summary rather than the full history. This prevents hard failures but introduces its own costs:
+
+- **Information loss**: Compaction is lossy. Specific details, exact error messages, and nuanced instructions may not survive summarization.
+- **Priority confusion**: The compaction algorithm must decide what to keep and what to discard. It may not prioritize the same things you would.
+- **Behavioral discontinuity**: Post-compaction Claude may behave slightly differently because it is working from a summary rather than the original context.
+
+Auto-compaction is a safety net, not a strategy. Relying on it means you are consistently pushing context to the point where quality has already degraded significantly before compaction even triggers.
+
+### Prompt Caching
+
+Prompt caching is one of the most important cost reduction mechanisms in Claude Code. When the same content appears at the beginning of multiple API calls -- which happens constantly because system prompts and CLAUDE.md files are included in every call -- the cached version is used at a significantly reduced token cost.
+
+Content that benefits from prompt caching:
+
+- **System prompts**: Claude Code's built-in instructions are identical across calls
+- **CLAUDE.md files**: Your project configuration is loaded every call
+- **Conversation history**: Previous messages in the session are repeated in each call
+- **Imported files**: Files referenced via `@import` in CLAUDE.md
+
+This is why CLAUDE.md bloat has a compounding cost effect (see [Failure Mode #6: Over-Specified CLAUDE.md](/research/failure-modes/)). A 500-line CLAUDE.md is loaded in every single API call. Even with prompt caching reducing the per-call cost, the base cost is still proportional to the file size, and the attention dilution effect operates on the full uncached token count.
+
+### Prompt Caching Numbers
+
+Community testing provides concrete benchmarks for caching efficiency. Well-optimized active sessions achieve approximately **90% cache hit rates**. A 20-turn session with 100K tokens of stable context saves **84% in input costs** through caching versus no caching. Cached input tokens cost 10% of uncached input tokens -- a 10x cost differential.
+
+Cache TTL varies by plan: **Max plan subscribers get 1-hour TTL**, while **Pro and API users get 5-minute TTL**. The timer resets with each cache hit during active work, so continuous work maintains the cache. Letting the TTL expire forces a full cache rebuild on the next message.
+
+Batching related work within one session is **3.8x cheaper** than doing the same work across five separate sessions, because the first session pays the cache write cost once while all subsequent turns benefit from cache reads.
+
+### Cache-Destroying Anti-Patterns
+
+Three common actions invalidate the prompt cache and force a full rebuild (see also [Failure Mode #10: Cache-Destroying Actions](/research/failure-modes/)):
+
+- **Switching models mid-session**: caches are model-specific. Opus and Sonnet cannot share cached content.
+- **Using /rewind**: breaks the cache on all content after the rewind point.
+- **Installing MCP servers or plugins mid-session**: rebuilds tool definitions at the start of the prompt, invalidating all downstream caches.
+
+Structure your CLAUDE.md with static content at the top and dynamic content at the bottom. The cache matches content from the beginning of the prompt forward -- any change in the middle invalidates everything after it.
+
+### The Feb-Mar 2026 Regression
+
+In early 2026, a notable regression affected Claude Code behavior. The default effort parameter was set to `effort=85`, which caused a systematic "rush-to-completion" pattern. Claude would attempt to finish tasks too quickly, cutting corners on verification, skipping edge cases, and producing lower-quality output that required more correction cycles -- which in turn consumed more context and cost more tokens.
+
+This regression illustrates an important principle: **the economics of Claude Code are not static.** Model behavior changes, default parameters shift, and what worked last month may not work this month. Practitioners who monitor their costs and quality metrics caught this regression early; those who did not may have experienced weeks of degraded productivity without understanding why.
+
+</div>
+
+<div id="cost-3">
+
+## Token Optimization Strategies
+
+The following strategies are ordered roughly by impact, from the highest-leverage changes to more incremental optimizations.
+
+### 1. Task Specificity
+
+The single most impactful change most users can make is writing more specific prompts. Vague requests trigger broad scanning behavior -- Claude reads more files, explores more options, and generates more speculative output, all of which consumes tokens.
+
+**Expensive (vague):**
+```
+Fix the authentication bug
+```
+
+Claude will read multiple auth-related files, explore several potential bugs, and may "fix" something that was not broken while missing the actual issue.
+
+**Efficient (specific):**
+```
+The login endpoint at src/routes/auth/login.ts returns 500 when the 
+email contains a plus sign. The issue is likely in the email validation 
+regex on line 47. Fix the regex to accept RFC 5322 compliant addresses.
+```
+
+Claude reads one file, goes to the specific line, and fixes the specific issue. The token cost difference between these two prompts can be 5-10x.
+
+The principle extends beyond bug fixes. For feature implementation:
+
+**Expensive:**
+```
+Add caching to the API
+```
+
+**Efficient:**
+```
+Add Redis caching to the GET /api/products endpoint in 
+src/routes/products.ts. Use a 5-minute TTL. Invalidate on POST/PUT/DELETE 
+to the same endpoint. The Redis client is already configured in 
+src/lib/redis.ts.
+```
+
+### 2. Plan Mode
+
+Plan Mode (toggled with Shift+Tab) instructs Claude to analyze and propose an approach without writing code. This prevents the most expensive category of waste: implementing the wrong approach and then having to redo it.
+
+Consider a task with two possible approaches. Without Plan Mode, Claude might spend 50,000 tokens implementing Approach A, only for you to realize Approach B is better. Now you either live with Approach A or spend another 50,000 tokens on Approach B. With Plan Mode, Claude spends 5,000 tokens outlining both approaches, you select Approach B, and Claude spends 50,000 tokens implementing it. Total: 55,000 tokens instead of 100,000.
+
+The math gets worse for complex tasks. A five-file refactoring where the initial direction is wrong can easily waste 100,000+ tokens before the mistake is discovered. Plan Mode costs you 5-10% of that upfront to avoid the waste entirely.
+
+### 3. Session Management
+
+The most wasteful pattern in Claude Code usage is the "kitchen sink session" -- a single conversation that sprawls across multiple unrelated tasks. Each completed task leaves residue in the context window that degrades performance on subsequent tasks and increases token consumption as the conversation history grows.
+
+**The discipline:**
+- One task, one session
+- Use `/clear` between unrelated tasks within the same terminal
+- Start fresh terminal sessions for genuinely independent workstreams
+- Target 30-60 minute sessions maximum before clearing or starting fresh
+
+**The economics:** A fresh session starts at 0% context usage. A session that has been running for two hours and three tasks might be at 70% -- meaning every subsequent API call includes 70% of irrelevant context that you are paying for and that is degrading output quality.
+
+### 4. Manual Compaction
+
+The `/compact` command triggers manual compaction -- Claude summarizes the conversation and continues with the summary. Unlike auto-compaction (which fires as a last resort near the context limit), manual compaction lets you control when it happens and what to preserve.
+
+The key to effective manual compaction is providing focus instructions:
+
+```
+/compact Focus on the caching implementation in src/lib/cache.ts. 
+Preserve the Redis configuration details and the TTL strategy we 
+decided on. Drop everything related to the authentication debugging 
+from earlier.
+```
+
+Without focus instructions, compaction applies a generic summarization that may not preserve what matters most for your next task. With focus instructions, you effectively create a curated context that carries forward only what you need.
+
+**When to compact manually:**
+- After finishing one subtask and before starting the next within a session
+- When you notice Claude referencing irrelevant earlier context
+- When the status line shows context usage above 60% and you have more work to do
+- Before asking Claude to tackle a particularly complex subtask that needs clean context
+
+### 5. Subagents for Research
+
+When Claude needs to understand a large codebase -- reading dozens of files, searching for patterns, mapping dependencies -- that research consumes enormous context. Subagents run in their own independent context windows and return only summaries, keeping your main conversation lean. See the [Multi-Agent Patterns Guide](/guides/multi-agent-guide/) and [Subagent Definition Examples](/templates/agents-examples/) for implementation details.
+
+The pattern:
+
+```
+Read through all the files in src/services/ and summarize:
+1. What each service does
+2. What external dependencies each one uses
+3. Which services call which other services
+
+Give me a concise summary I can use for planning.
+```
+
+The subagent reads 20 files (consuming perhaps 100,000 tokens in its own context), but your main session receives only the 2,000-token summary. Your main context stays clean for the actual implementation work.
+
+**When to use subagents:**
+- Codebase exploration and architecture mapping
+- Searching for patterns across many files
+- Reading documentation or configuration files
+- Any research task where you need conclusions, not raw data
+
+### 6. Monitoring Context Usage
+
+You cannot manage what you do not measure. Claude Code provides several mechanisms for tracking context consumption:
+
+- **Status line**: The bottom of the Claude Code interface shows current context usage as a percentage. Watch this number. Treat 70% as a yellow flag and 85% as a red one.
+- **`/usage`**: Shows detailed token usage for the current session
+- **`/stats`**: Provides session statistics including token counts
+- **`/cost`**: For API users, shows the dollar cost of the current session
+
+Build a habit of glancing at the status line after every few interactions, the same way you glance at your car's fuel gauge while driving. Running out of context is not a sudden failure -- it is a gradual degradation that sneaks up on you.
+
+### 7. /btw for Side Questions
+
+The `/btw` command opens a dismissible overlay for quick side questions that do not enter the main conversation context. This is designed for exactly the situation where you have a quick question that is tangential to your current task:
+
+```
+/btw What's the syntax for a TypeScript mapped type again?
+```
+
+The answer appears in an overlay. You read it, dismiss it, and your main context is unchanged. Without `/btw`, that question and its answer would consume context tokens and dilute Claude's focus on your primary task.
+
+**Use `/btw` for:**
+- Syntax lookups
+- Quick clarifications about language features
+- Questions about unrelated parts of the codebase
+- Anything where you need the answer but do not need Claude to remember the question
+
+</div>
+
+<div id="cost-4">
+
+## CLAUDE.md Cost Impact
+
+CLAUDE.md deserves its own section because its cost impact is uniquely persistent. Unlike a message that enters context once, CLAUDE.md is loaded at the beginning of every session and included in every API call via prompt caching. A bloated CLAUDE.md imposes a tax on every single interaction.
+
+### The Compounding Cost
+
+Consider two teams:
+
+| | Team A | Team B |
+|---|---|---|
+| CLAUDE.md size | 80 lines (~2,000 tokens) | 500 lines (~12,500 tokens) |
+| API calls per day | 200 | 200 |
+| Extra tokens per day | -- | 2,100,000 |
+| Monthly extra tokens | -- | ~46,000,000 |
+
+Even with prompt caching reducing the per-token cost, Team B is paying meaningfully more for every interaction, and the attention dilution from 500 lines of instructions means their output quality is also lower.
+
+### Size Guidelines
+
+Boris Cherny, the creator of Claude Code, uses a CLAUDE.md of approximately 100 lines. HumanLayer's analysis recommends ideally under 60 lines and never over 300. For guidance on writing a lean, effective file, see the [Writing CLAUDE.md Guide](/guides/claude-md-guide/) and the [CLAUDE.md Starter Templates](/templates/claude-md-template/). The consensus across sources is:
+
+| CLAUDE.md Size | Assessment |
+|---|---|
+| Under 60 lines | Ideal -- lean, focused, high compliance |
+| 60-100 lines | Good -- room for project specifics without bloat |
+| 100-200 lines | Acceptable -- watch for declining instruction compliance |
+| 200-300 lines | Caution -- start moving content to `@imports` |
+| Over 300 lines | Problematic -- instruction compliance degrades measurably |
+
+### Use @imports and Progressive Disclosure
+
+Instead of inlining everything into a single CLAUDE.md, use the `@import` directive to modularize:
+
+```markdown
+# Project: E-Commerce Platform
+
+Tech stack: Next.js 14, TypeScript, Prisma, PostgreSQL, Redis
+Run tests: pnpm test
+Run linting: pnpm lint
+
+## Key Conventions
+- Use named exports, not default exports
+- Repository pattern for all data access
+- All API routes return standard ApiResponse<T> type
+
+@import docs/architecture.md
+@import docs/testing-conventions.md
+@import docs/api-patterns.md
+```
+
+The root CLAUDE.md stays under 20 lines with the critical information. The imported files provide deeper context that Claude can reference when relevant, but the cognitive load of the always-present configuration stays minimal.
+
+**Progressive disclosure** takes this further: place directory-level `.claude.md` files in subdirectories so that context-specific instructions only load when Claude is working in that part of the codebase:
+
+```
+project/
+  CLAUDE.md              # Global: tech stack, test commands, key conventions
+  src/
+    api/
+      .claude.md         # API-specific: route patterns, auth middleware, response types
+    components/
+      .claude.md         # Component-specific: styling conventions, prop patterns
+    database/
+      .claude.md         # Database-specific: migration rules, query patterns
+```
+
+This structure means Claude only loads the API conventions when working on API code, avoiding the cost and attention dilution of carrying component styling rules in context while writing database queries.
+
+</div>
+
+<div id="cost-5">
+
+## Model Selection for Cost: The Opusplan Strategy
+
+One of the most effective cost optimization strategies available is the **opusplan** mode, which uses Opus for planning and Sonnet for implementation. This exploits a key insight: the quality difference between Opus and Sonnet matters most during planning (where reasoning depth determines the overall approach) and matters least during implementation (where the plan provides enough structure that Sonnet executes reliably).
+
+### How It Works
+
+```bash
+# Start Claude Code in opusplan mode
+claude --opusplan
+```
+
+In this mode:
+- **Planning phase**: Claude uses Opus to analyze the task, explore the codebase, identify risks, and produce a detailed implementation plan. This is where Opus's superior reasoning justifies its higher cost.
+- **Implementation phase**: Claude switches to Sonnet to execute the plan. Because the plan is detailed and specific, Sonnet's lower reasoning ceiling is not a bottleneck -- it is following instructions, not making architectural decisions.
+
+### Cost Impact
+
+The economics are compelling because planning typically consumes 5-15% of total tokens while having an outsized impact on outcome quality:
+
+| Mode | Planning Cost | Implementation Cost | Total (Relative) | Quality |
+|---|---|---|---|---|
+| All Sonnet | Low | Low | 1x | Good |
+| All Opus | High | High | 3-5x | Excellent |
+| Opusplan | High (5-15% of tokens) | Low (85-95% of tokens) | 1.2-1.5x | Excellent |
+
+You get Opus-quality reasoning where it matters most -- the architectural decisions that determine whether the implementation succeeds or fails -- without paying Opus rates for the bulk of the work. For complex tasks, this is frequently cited as the single most effective cost optimization strategy.
+
+### When to Use Opusplan
+
+- **Complex refactoring** where the plan determines success
+- **Multi-file changes** where coordination across files requires strong reasoning
+- **New feature implementation** where architectural decisions have lasting impact
+- **Debugging complex issues** where root cause analysis benefits from deeper reasoning
+
+### When Not to Use Opusplan
+
+- **Simple, well-defined tasks** where planning overhead is unnecessary
+- **Rapid iteration cycles** where the overhead of model switching adds latency
+- **Tasks where you already have a detailed plan** and just need implementation
+
+</div>
+
+<div id="cost-6">
+
+## Agent Teams Token Usage
+
+Agent teams -- orchestrations where multiple Claude instances collaborate on a task -- represent the highest-throughput and highest-cost usage pattern in Claude Code.
+
+### The 7x Multiplier
+
+> Agent teams use approximately **7x more tokens** than standard single-agent sessions for comparable tasks.
+
+This multiplier comes from the fundamental architecture: each teammate runs as a separate Claude instance with its own context window. A team of 4 agents, each consuming a normal session's worth of tokens, produces 4x the token cost before accounting for the coordination overhead of passing results between agents.
+
+### How Agent Teams Work
+
+Each teammate:
+- Has its own independent context window
+- Runs as a separate Claude instance
+- Cannot see other teammates' context directly
+- Communicates through structured handoffs
+
+This means the total token cost is roughly:
+
+```
+Total Tokens = (Tokens per Agent x Number of Agents) + Coordination Overhead
+```
+
+The coordination overhead includes the prompts that describe the team structure, task assignments, and result aggregation.
+
+### Optimizing Agent Team Costs
+
+**Put teammates in plan mode for cost reduction.** Not every teammate needs to write code. A teammate assigned to "review the test coverage of the authentication module" can operate in plan mode, producing analysis without implementation. This reduces that teammate's token consumption significantly.
+
+**Respect the sweet spot of 3-5 teammates.** The relationship between team size and effectiveness follows a curve of diminishing returns:
+
+| Team Size | Relative Effectiveness | Relative Cost | Cost-Effectiveness |
+|---|---|---|---|
+| 1 (solo) | Baseline | 1x | Baseline |
+| 2-3 | High gain per agent | 2-3x | Good |
+| 3-5 | Moderate gain per agent | 3-5x | Optimal |
+| 5-7 | Diminishing gain per agent | 5-7x | Marginal |
+| 7+ | Minimal additional gain | 7x+ | Poor |
+
+Beyond 5 teammates, the coordination overhead and context duplication erode the benefit of additional parallelism. Each new agent adds roughly the same cost but produces proportionally less unique value.
+
+**Assign clear, bounded tasks.** The most expensive agent team pattern is one where teammates have vague, overlapping responsibilities. This leads to duplicated work (multiple agents reading the same files) and coordination confusion (agents producing conflicting changes). Each teammate should have a clearly scoped task with defined inputs and outputs.
+
+### Token Budgets for Agent Teams
+
+For teams running agent orchestrations at scale, explicit token budgets prevent runaway costs:
+
+```yaml
+# Example token budget configuration
+agent_budgets:
+  frontend_agent:
+    max_tokens: 180000
+    pause_threshold: 0.85    # Auto-pause at 85% of budget
+    model: sonnet
+    
+  backend_agent:
+    max_tokens: 280000
+    pause_threshold: 0.85
+    model: sonnet
+    
+  planning_agent:
+    max_tokens: 100000
+    pause_threshold: 0.90
+    model: opus
+    
+  review_agent:
+    max_tokens: 120000
+    pause_threshold: 0.85
+    model: sonnet
+    mode: plan                # Plan mode only -- no implementation
+```
+
+Key configuration principles:
+
+- **Frontend agents get smaller budgets (180k)** because UI work typically involves smaller, more focused file changes
+- **Backend agents get larger budgets (280k)** because server-side work often requires reading more files and understanding more complex dependencies
+- **Planning agents use Opus** with moderate budgets because planning is reasoning-intensive but token-light
+- **Auto-pause at 85%** prevents agents from burning tokens in the degradation zone where output quality drops
+
+### Iteration Limits and Kill Criteria
+
+Beyond token budgets, iteration limits provide a second safety net:
+
+```bash
+# Set maximum iterations for agent loops
+export MAX_ITERATIONS=8
+```
+
+With `MAX_ITERATIONS=8`, an agent that has attempted a task 8 times without success will stop rather than continuing to burn tokens on a problem it cannot solve. This is combined with forced reflection -- at each iteration, the agent must explicitly assess whether it is making progress.
+
+**Kill criteria for agent management:**
+
+| Condition | Action |
+|---|---|
+| Agent stuck for 3+ iterations without progress | Reassign task or escalate to human |
+| Agent at 85% token budget | Auto-pause and report status |
+| Agent producing repeated similar errors | Stop, clear context, restart with better prompt |
+| Agent modifying files outside its scope | Halt and review task assignment |
+
+The combination of token budgets, iteration limits, and kill criteria creates a cost governance framework that allows teams to run agent orchestrations with confidence that costs will stay within expected bounds.
+
+</div>
+
+<div id="cost-7">
+
+## Cost Monitoring Tools
+
+Claude Code's built-in monitoring is supplemented by a growing ecosystem of community tools that provide deeper visibility into costs and usage patterns.
+
+### Built-In Commands
+
+| Command | What It Shows | Available To |
+|---|---|---|
+| Status line | Current context usage (%) | All users |
+| `/usage` | Token usage details for current session | All users |
+| `/stats` | Session statistics including token counts | All users |
+| `/cost` | Dollar cost of current session | API users only |
+
+The status line is the most important monitoring tool because it requires no action -- it is always visible. Customizing the status line to prominently display context usage percentage ensures that you are always aware of where you stand.
+
+### Community Tools
+
+**ccflare and better-ccflare** are web-based dashboards that provide detailed cost metrics beyond what the built-in commands offer. They connect to Claude Code's usage data and present it in a visual dashboard format with:
+
+- Per-session cost breakdowns
+- Cost trends over time
+- Token usage by model (Sonnet vs. Opus)
+- Cost per task category
+
+**CC Usage** is a CLI tool that generates a cost dashboard from local Claude Code logs. It runs entirely locally (no data leaves your machine) and provides:
+
+- Daily and weekly cost summaries
+- Token consumption patterns
+- Cost attribution by project or directory
+- Exportable reports for team budgeting
+
+**Claudex** is a web-based conversation browser that lets you review past Claude Code sessions, including their token usage. It is useful for retrospective analysis -- identifying which sessions were expensive and understanding why.
+
+### Setting Up Real-Time Monitoring
+
+For teams that want real-time cost visibility, a practical setup combines built-in and community tools:
+
+```bash
+# 1. Customize status line to show context percentage prominently
+# (configured in Claude Code settings)
+
+# 2. Install CC Usage for local cost tracking
+npm install -g cc-usage
+
+# 3. Run cost dashboard
+cc-usage dashboard
+
+# 4. Set up alerts for daily cost thresholds
+cc-usage alert --daily-max 30 --notify slack
+```
+
+The goal is making cost visible without making it burdensome. The status line provides passive, always-on awareness. The dashboard provides active, detailed analysis when you need it. Alerts notify you only when costs exceed expected bounds.
+
+</div>
+
+<div id="cost-8">
+
+## Practical Cost Budgets
+
+Bringing together all the strategies and tools discussed above, here is a practical framework for managing Claude Code costs at the team level.
+
+### Per-Developer Daily Budgets
+
+| Budget Tier | Daily Limit | Monthly Limit | Appropriate For |
+|---|---|---|---|
+| Conservative | $15 | $300 | Teams evaluating Claude Code, low-risk work |
+| Standard | $30 | $630 | Most professional development teams |
+| Generous | $50 | $1,050 | Teams with complex codebases, heavy agent usage |
+| Unlimited (Max plan) | N/A | $100 flat | Teams preferring cost predictability |
+
+For most teams, the Standard tier covers 90% of developers (recall that 90% of users stay under $30/day). The Generous tier accommodates the remaining 10% who are doing complex multi-agent work or working with particularly large codebases.
+
+### Cost Optimization Checklist
+
+For teams implementing Claude Code cost management, prioritize these practices in order of impact:
+
+1. **Session hygiene**: One task per session, `/clear` between tasks. This alone can reduce costs 30-50% compared to sprawling sessions. See [Consensus Practice #7: Aggressive Session Hygiene](/research/consensus-practices/) for the full discipline.
+
+2. **Specific prompts**: Tell Claude exactly what to do and where. Vague prompts trigger expensive exploration. A two-sentence specific prompt often costs less than a one-sentence vague one.
+
+3. **Plan Mode for complex tasks**: Spend 5-10% of tokens planning to avoid spending 100% of tokens reimplementing. The ROI is highest for multi-file changes.
+
+4. **CLAUDE.md discipline**: Keep it under 300 lines. Use `@imports` for depth. This reduces the per-call tax on every interaction.
+
+5. **Opusplan for important tasks**: Get Opus reasoning at 1.2-1.5x Sonnet cost instead of 3-5x. Use it for architectural decisions, not for typo fixes.
+
+6. **Subagents for research**: Delegate codebase exploration to subagents. Pay for research tokens once in a disposable context instead of loading raw data into your working session.
+
+7. **Monitor and adjust**: Use `/cost`, `/usage`, and community dashboards to track spending. You cannot optimize what you do not measure.
+
+### The ROI Perspective
+
+Cost management for Claude Code should be framed as ROI optimization, not cost minimization. The goal is not to spend as little as possible -- it is to get the most value per dollar spent. A $30 session that produces a well-tested, well-designed feature is cheaper than a $10 session that produces code requiring two days of manual cleanup.
+
+The practices in this page serve both sides of the ROI equation: they reduce the denominator (cost) while improving the numerator (quality). Session hygiene, Plan Mode, and specific prompts do not just save tokens -- they produce better output. This is the fundamental insight of Claude Code economics: **the cheapest token is not the one you did not spend, but the one that produced the highest-quality output.**
+
+</div>

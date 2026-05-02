@@ -1,0 +1,281 @@
+---
+title: Sources & Bibliography
+description: Annotated bibliography of all sources used in this research
+---
+
+This annotated bibliography catalogs all 32 sources consulted during the research and synthesis of Claude Code best practices. Each entry includes authorship and publication details, a credibility rating, and an annotation describing the source's relevance and key contributions. Sources are grouped by type, ranging from official Anthropic documentation to community experience reports, so that readers can calibrate the weight they give to any particular recommendation.
+
+import ContentPanels from '../../../components/ContentPanels';
+
+<ContentPanels client:load accentColor="#818cf8" items={[
+  { id: "src-official", title: "Official Documentation", description: "8 primary sources from Anthropic: best practices, CLAUDE.md, code review, costs, hooks, auto mode, advanced patterns webinar, and the What's New changelog (Weeks 13-17).", confidence: 5, icon: "📘", isNew: true },
+  { id: "src-creator", title: "Creator Insights", description: "Boris Cherny's personal workflow — ~100-line CLAUDE.md, 10-15 parallel sessions, Plan Mode default, six-step task loop.", confidence: 5, icon: "👤" },
+  { id: "src-industry", title: "Industry Analysis", description: "Addy Osmani, incident.io, HumanLayer — spec-driven development, Factory Model, worktrees, CLAUDE.md guidelines.", confidence: 4, icon: "🏢" },
+  { id: "src-community", title: "Community Resources", description: "GitHub repos, aggregators, dev blog articles — curated directories, cost optimization guides, prompt caching deep-dives, git workflow guides.", confidence: 3, icon: "🌐", isNew: true },
+  { id: "src-experience", title: "Experience Reports", description: "Practitioner stories, Reddit mega-threads, HN discussions — 500K lines in 90 days, spec-driven case studies, code review economics, pattern inheritance, destructive operation incidents.", confidence: 2, icon: "📝", isNew: true },
+  { id: "src-framework", title: "Source Credibility Framework", description: "The five-tier credibility scale used throughout this bibliography, from official docs (5/5) to unverified anecdotes (1/5).", icon: "⚖️" },
+]} />
+
+<div id="src-official">
+
+## Official Documentation
+
+**Credibility: 5/5**
+
+These are primary sources published by Anthropic. They carry the highest credibility because they describe intended product behavior, reflect internal engineering knowledge, and are maintained alongside Claude Code itself.
+
+### 1. [Best Practices for Claude Code](https://code.claude.com/docs/en/best-practices)
+
+**Author:** Anthropic | **Date:** 2025 (continuously updated)
+
+This is the single most important source in the entire bibliography -- the definitive, authoritative reference for Claude Code usage. It covers the full surface area of the tool: context management strategies, verification loops for self-correcting output, structured planning workflows, the CLAUDE.md configuration system, permission models, CLI tool integration, Model Context Protocol (MCP) server usage, lifecycle hooks, custom skills, subagent orchestration, session management, and scaling patterns for teams. Every other source in this bibliography either builds upon, validates, or occasionally contradicts the guidance found here. When conflicts arise between this document and any other source, this document should be treated as canonical. The guide is notable for its practical, example-driven approach -- it does not merely describe features but prescribes workflows and patterns that emerge from real-world usage at scale.
+
+### 2. [Using CLAUDE.md Files](https://claude.com/blog/using-claude-md-files)
+
+**Author:** Anthropic | **Date:** 2025
+
+This official blog post provides the authoritative guide to the CLAUDE.md configuration file system, which functions as persistent memory and behavioral instruction for Claude Code sessions. It details the hierarchical placement strategy (project root, subdirectories, and user-level files), the internal structure and formatting conventions that Claude Code parses most reliably, the `@import` syntax for modular composition of configuration files, and the inheritance model that determines how directives at different levels of the file hierarchy interact. This source is essential because CLAUDE.md configuration is arguably the single highest-leverage practice in Claude Code usage -- it transforms a generic AI assistant into a project-aware collaborator that understands local conventions, architectural decisions, and team preferences without repeated prompting. Our [Writing CLAUDE.md Guide](/guides/claude-md-guide/) distills this source's recommendations into actionable steps.
+
+### 3. [Code Review for Claude Code](https://claude.com/blog/code-review)
+
+**Author:** Anthropic | **Date:** 2025
+
+This source documents Anthropic's official parallel multi-agent code review plugin, which represents the most mature example of production-grade multi-agent Claude Code orchestration. The system achieves an under-1% false positive rate, a figure that is remarkable given the well-known tendency of AI systems to generate noisy or irrelevant findings during code analysis. At a cost of $15-25 per review, it sits in a practical range for professional teams. The source is valuable not only for teams considering automated code review but also as a case study in how Anthropic itself designs multi-agent workflows -- the parallel execution model, quality gating, and false-positive mitigation strategies described here inform broader multi-agent architecture patterns throughout this research.
+
+### 4. [Manage Costs Effectively](https://code.claude.com/docs/en/costs)
+
+**Author:** Anthropic | **Date:** 2025 (continuously updated)
+
+This documentation page provides the definitive reference on Claude Code cost management, including the prompt caching system and auto-compaction behavior that are critical to keeping usage affordable. The headline figures it establishes -- approximately $13 per developer per day on average, translating to $150-250 per developer per month -- serve as the baseline cost expectations referenced throughout this research. The page explains how prompt caching works to reduce token costs on repeated context, how auto-compaction triggers when context windows fill, and practical strategies teams can employ to keep costs predictable. For organizations evaluating Claude Code adoption, this source provides the financial framework needed for budgeting and ROI analysis.
+
+### 5. [Automate Workflows with Hooks](https://code.claude.com/docs/en/hooks-guide)
+
+**Author:** Anthropic | **Date:** 2025
+
+This guide covers Claude Code's hooks system, which provides deterministic lifecycle automation that runs at specific points during the agent's execution cycle. The critical insight from this source is the compliance differential: hooks achieve 100% compliance with automated rules (because they execute as code, not as suggestions), compared to approximately 80% compliance when the same rules are expressed as CLAUDE.md directives (because the agent may interpret, modify, or overlook natural-language instructions). See [Hook Configuration Examples](/templates/hooks-examples/) for ready-to-use configurations based on these patterns. This 20-percentage-point gap makes hooks the preferred mechanism for any rule that must be enforced without exception -- linting, formatting, security checks, commit message validation, and similar concerns. The source details the available lifecycle events, configuration syntax, and patterns for combining hooks with CLAUDE.md directives for layered governance.
+
+### 6. [Claude Code Auto Mode](https://www.anthropic.com/engineering/claude-code-auto-mode)
+
+**Author:** Anthropic | **Date:** March 2026
+
+This engineering blog post documents auto mode, a permission system that uses a two-stage AI classifier (built on Sonnet 4.6) to auto-approve safe actions while blocking dangerous ones across four threat categories: destroy/exfiltrate, degrade security, cross trust boundaries, and bypass review. The system achieves a 0.4% false positive rate on real traffic but carries a 17% false negative rate on genuinely dangerous actions -- a critical tradeoff that practitioners must understand before adopting it. The post provides detailed performance data, configuration options (environment definitions, block rules, allow exceptions), and the retry logic that escalates to human review after 3 consecutive or 20 total denials. See [Advanced Pattern #11: Auto Mode](/research/advanced-patterns/) for the full writeup.
+
+### 7. [Claude Code Advanced Patterns Webinar](https://www.anthropic.com/webinars/claude-code-advanced-patterns)
+
+**Author:** Anthropic Applied AI team | **Date:** March 24, 2026
+
+This recorded webinar covers advanced patterns including subagent orchestration, MCP integration (when to build a custom tool vs. when a script will do), CLAUDE.md structuring for monorepos, context management strategies for large codebases, and CI/CD pipeline integration for automated PR review and test generation. The source is valuable as an official demonstration of how Anthropic's own applied AI team thinks about scaling Claude Code beyond single-session usage.
+
+### 8. [Claude Code: What's New (Weeks 13-17)](https://www.anthropic.com/claude-code/whats-new)
+
+**Author:** Anthropic | **Date:** March-April 2026
+
+The official Claude Code changelog covering Weeks 13-17 of product updates. The features documented here have direct implications for best practices: Week 15 added the Monitor tool for observing background processes and the `/effort` slider for controlling reasoning depth; Week 16 shipped Routines (official scheduled agents), promoting the previously experimental scheduled-agent pattern to a first-class, supported feature; Week 17 introduced Opus 4.7 as the new top-tier model and `xhigh` as a new effort level for extended reasoning tasks. The Routines announcement is the most practice-relevant item -- it raises confidence in scheduled agents from experimental to supported and makes the cron-based workaround approach secondary to the native `/schedule` command. See [Advanced Pattern #9: Scheduled Autonomous Agents](/research/advanced-patterns/) for the updated writeup.
+
+</div>
+
+<div id="src-creator">
+
+## Creator Insights
+
+**Credibility: 5/5**
+
+This category contains sources from individuals who created or directly maintain Claude Code. Their firsthand knowledge of the system's internals gives their workflow recommendations exceptional weight.
+
+### 6. [Claude Code Best Practices: Inside the Creator's 100-Line Workflow](https://mindwiredai.com/2026/03/25/claude-code-creator-workflow-claudemd/)
+
+**Author:** Boris Cherny (via MindWired AI) | **Date:** March 2025
+
+Boris Cherny, the creator of Claude Code, shared his personal daily workflow in this detailed interview, making it one of the most uniquely valuable sources in the bibliography. His CLAUDE.md file is approximately 100 lines long -- a data point that directly challenges the tendency among users to create sprawling, multi-hundred-line configuration files. He routinely runs 10-15 parallel Claude Code sessions simultaneously, demonstrating the tool's capacity for concurrent workstreams when properly managed. He uses Plan Mode as a default starting point for every task, treating it as a forcing function for structured thinking before code generation begins. Most importantly, he describes a six-step task loop (understand, plan, implement, verify, review, iterate) that represents the distilled workflow of someone who knows the system's internals better than anyone outside Anthropic's engineering team. This source is invaluable for calibrating expectations: if the creator keeps his CLAUDE.md under 100 lines and always starts in Plan Mode, those practices deserve serious weight in any recommendations framework.
+
+</div>
+
+<div id="src-industry">
+
+## Industry Analysis
+
+**Credibility: 4/5**
+
+These sources come from recognized industry practitioners and engineering organizations. They provide battle-tested patterns from production environments, though they may reflect specific team contexts that do not generalize universally.
+
+### 7. [Coding for the Future Agentic World](https://addyo.substack.com/p/coding-for-the-future-agentic-world)
+
+**Author:** Addy Osmani | **Date:** 2025
+
+Addy Osmani, a well-known engineering leader (formerly Google Chrome team), provides a strategic perspective on how software development workflows are evolving in response to AI coding agents. His key contributions to this research are threefold: the argument for spec-driven development (writing detailed specifications before engaging the agent), the advocacy for TDD-first workflows (letting test suites serve as both specification and verification for agent-generated code), and the reframing of the developer's role from "writer of code" to "conductor of an orchestra" of AI agents. This last metaphor is particularly influential -- it captures the shift from line-by-line coding to higher-order activities like architecture, specification, review, and orchestration. The source is rated 4/5 rather than 5/5 because it addresses the agentic coding landscape broadly rather than Claude Code specifically, requiring readers to translate general principles into Claude Code-specific practices.
+
+### 8. [The Code Agent Orchestra](https://addyosmani.com/blog/code-agent-orchestra/)
+
+**Author:** Addy Osmani | **Date:** 2025
+
+This companion piece to Osmani's Substack article dives deeper into multi-agent orchestration patterns (explored further in our [Multi-Agent Patterns Guide](/guides/multi-agent-guide/)). It introduces a three-tier taxonomy of multi-agent architectures (sequential pipelines, parallel fan-out, and hierarchical delegation) that provides the conceptual scaffolding for understanding how Claude Code subagents can be composed. The Factory Model pattern described here -- where a central orchestrator spawns specialized worker agents with narrow, well-defined mandates -- directly informs the multi-agent recommendations in this research. Osmani also introduces practical guardrails, including quality gates between agent stages and the MAX_ITERATIONS=8 limit to prevent runaway agent loops, a specific and actionable parameter that multiple practitioners have validated. This source bridges the gap between abstract multi-agent theory and concrete implementation patterns.
+
+### 9. [Shipping Faster with Claude Code and Git Worktrees](https://incident.io/blog/shipping-faster-with-claude-code-and-git-worktrees)
+
+**Author:** incident.io engineering team | **Date:** 2025
+
+This production experience report from incident.io provides one of the most concrete and measurable case studies in the bibliography. The team developed a custom `w` bash function that streamlines the creation and management of git worktrees for parallel Claude Code sessions, eliminating the friction of branch management when running multiple agents simultaneously. They integrated voice-driven development via SuperWhisper, enabling developers to dictate prompts and instructions naturally. Most strikingly, they report achieving an 18% performance improvement on a specific task for just $8 in Claude Code costs -- a data point that makes a compelling ROI argument for Claude Code adoption. The source is valuable both for its specific technical innovations (the worktree workflow, the voice integration) and as evidence that relatively small investments in Claude Code tooling can yield measurable productivity gains.
+
+### 10. [Writing a Good CLAUDE.md](https://www.humanlayer.dev/blog/writing-a-good-claude-md)
+
+**Author:** HumanLayer | **Date:** 2025
+
+This source provides the most detailed third-party analysis of CLAUDE.md authoring best practices. Its central recommendation -- keep CLAUDE.md files under 300 lines, with 60 lines as the ideal target -- establishes the "less is more" principle that aligns with Boris Cherny's own approximately 100-line practice. The WHY/WHAT/HOW framework it introduces (explain why a convention exists before prescribing what to do and how to do it) addresses a common failure mode where CLAUDE.md files contain rules without rationale, leading Claude to comply mechanically rather than understanding intent. The progressive disclosure principle (put the most critical rules first, details later) acknowledges that Claude Code's attention to instructions degrades as configuration files grow longer. Perhaps most importantly, it warns against auto-generating CLAUDE.md files -- a practice that tends to produce bloated, generic configurations that dilute the signal of truly important project-specific instructions.
+
+</div>
+
+<div id="src-community">
+
+## Community Resources
+
+**Credibility: 3/5**
+
+Community sources represent collective practitioner knowledge. They are valuable for breadth of coverage and practical tips but may include unverified claims, outdated information, or recommendations that reflect individual preferences rather than broadly validated practices.
+
+### 11. [claude-code-best-practice](https://github.com/shanraisshan/claude-code-best-practice)
+
+**Author:** shanraisshan | **Date:** 2025-2026
+
+This GitHub repository provides a structured framework for Claude Code usage built around a five-phase workflow: Research, Plan, Execute, Review, and Ship. While the phases themselves align with official guidance, the repository's unique contribution is its detailed taxonomy of Claude Code's execution mechanisms -- distinguishing between Commands (slash commands and CLI invocations), Agents (subagent delegation patterns), and Skills (reusable capability modules). This architectural decomposition helps users understand which mechanism to reach for in different situations, a question that the official documentation addresses less directly. The repository is community-maintained and should be cross-referenced against official documentation for accuracy, but its organizational framework has proven useful as a mental model for structuring Claude Code workflows.
+
+### 12. [awesome-claude-code](https://github.com/hesreallyhim/awesome-claude-code)
+
+**Author:** hesreallyhim and contributors | **Date:** 2025-2026 (continuously updated)
+
+With over 38,000 GitHub stars, this is the largest and most actively maintained curated directory of Claude Code ecosystem resources. It catalogs tools, plugins, MCP servers, orchestration frameworks, CLAUDE.md templates, and community extensions in a structured format that makes it an invaluable discovery mechanism. While the repository itself does not provide original analysis or recommendations, its role as an aggregator is critical -- it surfaces tools and patterns that might otherwise remain obscure, and its star count and contributor activity serve as a rough proxy for community validation. Researchers and practitioners should treat it as a starting point for tool discovery rather than as an endorsement of any particular tool's quality or suitability.
+
+### 13. [7 Claude Code Best Practices for 2026](https://www.eesel.ai/blog/claude-code-best-practices)
+
+**Author:** eesel AI | **Date:** 2026
+
+This blog post distills Claude Code best practices into seven actionable recommendations covering CLAUDE.md configuration, planning workflows, tool integration, git practices, prompt engineering, subagent usage, and automation patterns. Its value lies in its accessibility -- where official documentation can be dense and comprehensive, this source provides a streamlined entry point for teams adopting Claude Code for the first time. The seven practices it identifies align well with the consensus emerging from higher-credibility sources, which lends confidence to its recommendations even though it lacks the depth of official or creator sources. It is particularly useful as a quick-reference checklist for developers who want a concise summary of the most impactful practices without reading the full body of research.
+
+### 14. [50 Claude Code Tips and Best Practices](https://www.builder.io/blog/claude-code-tips-best-practices)
+
+**Author:** Builder.io | **Date:** 2025
+
+This is the most expansive single collection of Claude Code tips in the bibliography, covering 50 distinct practices across configuration, prompting, workflow management, debugging, and team collaboration. The sheer breadth of coverage makes it a useful reference for practitioners looking for specific tactical advice on narrow topics that other sources may not address. However, the tips vary significantly in depth and validation -- some reflect well-established best practices confirmed by multiple sources, while others appear to be individual preferences or edge-case solutions. Readers should cross-reference high-stakes recommendations against official documentation. The source is most valuable as a supplementary reference for filling gaps left by more focused sources, and as evidence of the range of creative workflows the community has developed around Claude Code.
+
+### 15. [Git Workflow for Claude Code Users](https://builtbyzac.com/git-workflow-claude-code)
+
+**Author:** builtbyzac.com | **Date:** 2026
+
+This guide details a four-habit git workflow designed specifically for Claude Code usage: feature branches for every task, Conventional Commits format enforced via CLAUDE.md, atomic commits per logical change, and a pre-push `git diff main` review checkpoint. The source is notable for treating git discipline not as general good practice but as a Claude Code-specific concern -- arguing that Claude's speed makes version control hygiene more important, not less, because the human review window shrinks when code is generated faster than it can be audited. The recommendation to put commit format rules directly in CLAUDE.md (rather than trusting Claude to follow unstated conventions) is a practical detail that other sources overlook. Combined with cybernerdie's six-month report, this source forms the primary basis for [Advanced Pattern #14: Git Workflow Discipline](/research/advanced-patterns/).
+
+</div>
+
+<div id="src-experience">
+
+## Experience Reports
+
+**Credibility: 2-3/5**
+
+Experience reports are first-person accounts from individual practitioners. They provide authentic ground-truth about real-world usage but are inherently anecdotal, reflecting specific projects, skill levels, and contexts that may not generalize.
+
+### 15. [Pitfalls of Claude Code](https://dev.to/cheetah100/pitfalls-of-claude-code-1nb6)
+
+**Author:** cheetah100 | **Date:** 2025 | **Credibility: 3/5**
+
+This is the most important contrarian source in the bibliography. While most sources focus on what works well, this DEV Community post catalogs specific failure modes that practitioners encounter when using Claude Code without sufficient guardrails. The four pitfalls it identifies -- premature implementation (jumping to code before understanding requirements), silent decisions (making architectural choices without surfacing them for human review), compliance over critical thinking (following instructions literally rather than flagging potential issues), and futile thrashing (repeatedly attempting failed approaches without changing strategy) -- are failure modes that every other source's recommendations implicitly attempt to prevent. This source is valuable precisely because it provides the negative examples that motivate best practices: Plan Mode exists because of premature implementation, verification loops exist because of silent decisions, and iteration limits exist because of futile thrashing. Any practitioner who has not encountered these pitfalls is likely not pushing Claude Code hard enough to benefit from the full best-practices framework.
+
+### 16. [Claude Code 2.0 Guide](https://sankalp.bearblog.dev/my-experience-with-claude-code-20-and-how-to-get-better-at-using-coding-agents/)
+
+**Author:** Sankalp | **Date:** 2025 | **Credibility: 2/5**
+
+This personal experience report introduces several practical techniques that, while anecdotal, address real workflow challenges. The "throw-away draft" method -- having Claude Code generate a complete first draft with the explicit understanding that it will be discarded and rewritten -- is a creative approach to the cold-start problem, where the agent struggles to produce high-quality output without an existing codebase to reference. The multi-model review practice (using a different AI model to review Claude Code's output) provides a form of adversarial validation that catches model-specific blind spots. Most notably, the observation that context quality degrades significantly once the context window exceeds 60% utilization provides a practical threshold that, if validated more broadly, has important implications for session management and compaction strategies. The credibility rating reflects the single-author, anecdotal nature of the evidence, but the specific claims are testable and worth tracking.
+
+### 17. [My Claude Code Setup After 4 Months](https://okhlopkov.com/claude-code-setup-mcp-hooks-skills-2026/)
+
+**Author:** okhlopkov | **Date:** 2026 | **Credibility: 3/5**
+
+This detailed setup guide documents a mature Claude Code configuration developed over four months of daily use, covering MCP server integration (see [MCP Server Configuration](/templates/mcp-config/)), custom skills (see [Skill File Examples](/templates/skills-examples/)), lifecycle hooks, and CLAUDE.md structure. The author's CLAUDE.md stays under 150 lines, adding another data point to the emerging consensus around concise configuration files (alongside Boris Cherny's approximately 100 lines and HumanLayer's 60-300 line recommendation). The source is particularly valuable for its specificity -- rather than prescribing abstract principles, it shows exact configurations, file structures, and tool choices that constitute a working daily-driver setup. For practitioners moving beyond basic Claude Code usage into a fully customized development environment, this source provides a concrete reference architecture to adapt rather than building from scratch.
+
+### 18. Reddit "500k+ lines in 90 days" Post
+
+**Author:** Anonymous Reddit user | **Date:** 2025 | **Credibility: 2/5**
+
+This widely-discussed Reddit post describes a large-scale Claude Code deployment that reportedly produced over 500,000 lines of code in 90 days across a monorepo architecture. While the headline figure should be treated with skepticism (lines of code is a notoriously poor proxy for productivity, and the claim is unverified), the post's value lies in the specific architectural patterns it describes: monorepo organization for AI-assisted development, modular routing structures that give Claude Code clear boundaries for changes, preference for popular and well-documented technology stacks (which benefit from Claude's training data distribution), SKILL files for reusable capability definitions, database MCP servers for direct data access, and the use of tmux and git worktrees for parallel session management. These patterns are consistent with recommendations from higher-credibility sources and represent a plausible large-scale workflow even if the specific output claims are unverifiable.
+
+### 19. Reddit Multi-Agent Orchestration Prompt
+
+**Author:** Anonymous Reddit user | **Date:** 2025 | **Credibility: 2/5**
+
+This Reddit post describes a structured multi-agent pipeline built around four artifacts: SPEC.md (a detailed specification document), TASKS.md (a decomposed task list derived from the spec), an AGENTS/ directory (containing configuration files for specialized subagents), and an ORCHESTRATE.sh shell script (that coordinates execution across agents). While the implementation details are specific to one user's setup, the underlying pattern -- specification, decomposition, specialization, and orchestration as distinct phases -- mirrors the multi-agent architecture patterns described by Addy Osmani and aligns with Anthropic's own subagent documentation. The source is valuable as a concrete, if rudimentary, implementation of principles that higher-credibility sources describe more abstractly. It demonstrates that even individual practitioners are arriving at similar architectural patterns independently, which lends indirect support to the multi-agent recommendations in this research.
+
+### 20. [Mastering Cache Hits in Claude Code](https://dev.to/kitaekatt/mastering-cache-hits-in-claude-code-5648)
+
+**Author:** kitaekatt (DEV Community) | **Date:** April 2026 | **Credibility: 3/5**
+
+This community article provides the most detailed quantitative analysis of prompt caching behavior in Claude Code found during research. Key data points include: well-optimized sessions achieve approximately 90% cache hit rates, a 20-turn session with 100K stable context saves 84% in input costs, and batching related work in one session is 3.8x cheaper than separate sessions. The article also documents three cache-destroying anti-patterns (model switching, /rewind usage, mid-session MCP installation) that are now documented in [Failure Mode #10](/research/failure-modes/). See [Advanced Pattern #12: Prompt Caching Discipline](/research/advanced-patterns/) for the synthesized practice.
+
+### 21. [Spec-Driven Development with Claude Code in Action](https://alexop.dev/posts/spec-driven-development-claude-code-in-action/)
+
+**Author:** alexop.dev | **Date:** April 2026 | **Credibility: 3/5**
+
+A detailed case study of the four-phase spec-driven development workflow (parallel research, specification creation, interview refinement, task delegation) applied to a real SQLite-to-IndexedDB migration. The concrete metrics make this source particularly valuable: 14 atomic commits across 15+ files in approximately 45 minutes, with the main orchestrator using only 71% of context. The specification serving as a recovery point across sessions is a novel insight. See [Advanced Pattern #13: Spec-Driven Development](/research/advanced-patterns/).
+
+### 22. [Optimizing Token Efficiency: Managing Large MCP Responses](https://medium.com/@pierreyohann16/optimizing-token-efficiency-in-claude-code-workflows-managing-large-model-context-protocol-f41eafdab423)
+
+**Author:** Pierre-Emmanuel Féga (Medium) | **Date:** April 2026 | **Credibility: 3/5**
+
+This source identifies and quantifies a previously undocumented failure mode: MCP tools returning 10,000+ tokens per call when users need only ~500 tokens (5% efficiency). The proposed mitigation -- externalizing responses to temporary files and processing with a dedicated Skill -- achieves 95-97% token savings. See [Failure Mode #11: MCP Response Bloat](/research/failure-modes/).
+
+### 23. [Claude Code Is Eating Your Budget: 7 Fixes](https://medium.com/@0xmega/claude-code-is-eating-your-budget-7-fixes-that-cut-costs-without-killing-output-f8dbb3b8a04d)
+
+**Author:** 0xmega (Medium) | **Date:** April 2026 | **Credibility: 3/5**
+
+A practical cost optimization guide with seven specific fixes. The most novel contributions are the recommendation to run /compact every 30-45 minutes (reducing per-turn tokens from 8,000 to 2,000 -- a 75% reduction), and configuring `max_turns: 10` and `timeout_minutes: 15` to prevent runaway agent loops. One developer cited in the article reported 13.2 million cache read tokens in a single week on Sonnet.
+
+### 24. [Spec-Driven Development with Claude Code (HN Discussion)](https://news.ycombinator.com/item?id=46970829)
+
+**Author:** Hacker News community | **Date:** March 2026 | **Credibility: 3/5**
+
+Discussion thread on spec-driven development workflow. Key contribution: acceptance criteria traced to specific lines in PR diffs catches semantic gaps that lint and type-check miss. The thread validates browser-level testing against live deployments as an emerging verification pattern beyond unit tests.
+
+### 25. [Code Review for Claude Code (HN Discussion)](https://news.ycombinator.com/item?id=47313787)
+
+**Author:** Hacker News community | **Date:** April 2026 | **Credibility: 3/5**
+
+Discussion of Anthropic's code review feature with practitioner data points. The cross-context review insight -- that independent review agents in fresh sessions outperform same-session reviews by eliminating anchoring bias and sycophancy -- strengthens the Writer/Reviewer pattern. A solo developer reports $0.04/review across 200+ PRs, and the thread surfaces a fixed-issue-count flaw where Claude surfaces approximately 8 issues regardless of actual code quality.
+
+### 26. r/webdev -- PR Audit Reveals Claude Copied Bad Patterns
+
+**Author:** Reddit community (r/webdev) | **Date:** 2026 | **Credibility: 3/5**
+
+A 478-comment thread sparked by a developer who discovered during a PR audit that Claude Code had silently copied anti-patterns from the legacy portions of the codebase, propagating them into new code. The thread produced independently confirmed accounts of the same failure mode: Claude defaults to imitating existing code style and structure, including bad patterns, unless explicitly told to write to a different standard. Multiple commenters documented cases where Claude normalized technical debt by treating it as the "house style." This source directly motivated [Failure Mode #12: AI Code Pattern Inheritance](/research/failure-modes/).
+
+### 27. r/ExperiencedDevs -- Claude Code Codebase Disconnection
+
+**Author:** Reddit community (r/ExperiencedDevs) | **Date:** 2026 | **Credibility: 3/5**
+
+Discussion of how Claude Code loses context across sessions and works against earlier architectural decisions. Senior engineers in this thread noted that Claude reinvents solutions, ignores established abstractions, and makes locally-reasonable changes that contradict system-level decisions made in previous sessions -- not because it is wrong about the code it sees, but because it has no visibility into the reasoning behind patterns it cannot find in the current context. The thread converged on atomic commits with meaningful messages as the primary mitigation: a readable git history gives Claude a window into past decisions that CLAUDE.md cannot provide. Also contributes to [Failure Mode #12](/research/failure-modes/) and [Advanced Pattern #14: Git Workflow Discipline](/research/advanced-patterns/).
+
+### 28. r/ClaudeCode -- Accidental 202GB Archive Deletion
+
+**Author:** Reddit community (r/ClaudeCode) | **Date:** 2026 | **Credibility: 3/5**
+
+A first-person account of an incident where Claude Code deleted a 202GB archive directory during a cleanup task, acting on a plausible but incorrect interpretation of the instruction. The poster had told Claude to "clean up old build artifacts" and Claude identified the archive directory as fitting that description. The thread generated substantial discussion about the need for destructive-operation guardrails: hooks that prompt for confirmation before deletion commands, `--allowedTools` scoping that excludes `rm -rf` patterns, and the principle that any operation affecting more than a threshold of files or bytes should require explicit human confirmation. This source motivated [Failure Mode #13: Destructive Operation Without Guardrails](/research/failure-modes/).
+
+### 29. [Six Months With Claude Code](https://medium.com/@cybernerdie/six-months-with-claude-code)
+
+**Author:** cybernerdie (Medium) | **Date:** 2026 | **Credibility: 3/5**
+
+A detailed retrospective from a developer who has used Claude Code as their primary development tool for six months. The report is notable for its focus on workflow evolution over time -- the author describes how their CLAUDE.md, git discipline, and session management practices all changed after observing patterns in how Claude behaves across sessions. The most actionable insights concern git workflow: feature branches as blast-radius containment, atomic commits as session handoff documentation, and structured PR descriptions that let reviewers understand changes without back-and-forth. The author explicitly traces the atomic commit habit to a specific incident where a vague commit message made a cross-session conflict invisible until it appeared as a bug in production. Combined with builtbyzac.com's workflow guide, this source forms the primary basis for [Advanced Pattern #14: Git Workflow Discipline](/research/advanced-patterns/).
+
+</div>
+
+<div id="src-framework">
+
+## Source Credibility Framework
+
+The credibility ratings used throughout this bibliography follow a five-tier scale:
+
+- **5/5** -- Official Anthropic documentation and direct creator insights. These sources describe intended behavior and reflect internal knowledge of the system.
+- **4/5** -- Recognized industry practitioners and established engineering organizations with verifiable track records. Their recommendations carry weight but may reflect specific contexts.
+- **3/5** -- Community-maintained resources with significant adoption (measured by stars, forks, or citations). Useful for breadth and discovery but should be cross-referenced.
+- **2/5** -- Individual experience reports and anonymous forum posts. Valuable for authentic ground-truth but inherently anecdotal and unverified.
+- **1/5** -- Not used in this bibliography. Would apply to sources with clear conflicts of interest, factual errors, or no demonstrated familiarity with the subject.
+
+When recommendations from lower-credibility sources conflict with higher-credibility sources, the higher-credibility source should be preferred. When lower-credibility sources independently converge on the same recommendation, that convergence itself constitutes evidence worth considering.
+
+</div>

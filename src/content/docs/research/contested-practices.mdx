@@ -1,0 +1,246 @@
+---
+title: Contested Practices
+description: Practices where the community disagrees - both sides of each debate with evidence
+---
+
+The Claude Code community has converged on many best practices, but several important questions remain genuinely contested. Reasonable, experienced practitioners land on opposite sides of these debates, and the "right" answer often depends on context: team size, codebase complexity, risk tolerance, and individual workflow preferences.
+
+This page presents five contested practices where the evidence supports multiple valid approaches. For each, we lay out both sides with real-world evidence and conclude with guidance on when each approach makes the most sense.
+
+import ContentPanels from '../../../components/ContentPanels';
+
+<ContentPanels client:load accentColor="#fbbf24" items={[
+  { id: "contested-1", title: "How Much Autonomy to Give Claude", description: "Full bypass mode for E2E implementation vs. human-in-the-loop for every change. The community is deeply split.", confidence: 3, date: "2026-04-11", icon: "🔓" },
+  { id: "contested-2", title: "Auto-Generate vs Hand-Craft CLAUDE.md", description: "Use /init for quick setup vs. always hand-craft. AI-written rules may reduce success by ~3% while human-curated gives ~4% improvement.", confidence: 3, date: "2026-04-11", icon: "🤖" },
+  { id: "contested-3", title: "Multi-Agent: Worth the Overhead?", description: "3x throughput with parallel agents vs. 7x token costs. Sweet spot appears to be 3-5 teammates for most tasks.", confidence: 3, date: "2026-04-11", icon: "👥" },
+  { id: "contested-4", title: "Model Selection Strategy", description: "Opus for everything (consistency) vs. opusplan mode (Opus planning + Sonnet implementation for cost savings).", confidence: 3, date: "2026-04-11", icon: "🧬" },
+  { id: "contested-5", title: "CLAUDE.md: 60 Lines or 300?", description: "Ultra-short ~60-100 lines (Boris Cherny, HumanLayer) vs. structured longer files for complex monorepos with progressive disclosure.", confidence: 3, date: "2026-04-11", icon: "📏" },
+]} />
+
+<div id="contested-1">
+
+## 1. How Much Autonomy to Give Claude
+
+This is perhaps the most polarizing question in the Claude Code community. The spectrum runs from "fully autonomous agent completing entire features unsupervised" to "every change must be explicitly reviewed before it lands." Both extremes have vocal, successful advocates.
+
+### The Case for Full Autonomy
+
+Proponents of high autonomy point to dramatic productivity multipliers. One Reddit user reported successfully managing a 500,000-line codebase with Claude operating in full bypass mode, implementing entire end-to-end features with minimal human intervention. The key to making this work, they reported, was a robust test suite that served as an automated safety net -- Claude could write, run, and iterate on code with the tests acting as a continuous feedback loop.
+
+Anthropic's own documentation describes an "auto" mode with a classifier that catches risky actions, allowing Claude to operate freely on routine tasks while escalating decisions that could cause damage. This approach tries to get the best of both worlds: speed on the straightforward work, human oversight on the dangerous parts.
+
+Boris Cherny, whose workflow is among the most ambitious documented, regularly runs 10-15 simultaneous Claude sessions with minimal supervision. His approach relies on extremely well-scoped tasks, strong CLAUDE.md configuration, and comprehensive test coverage to catch problems. The sessions operate largely independently, with Cherny reviewing output rather than guiding process.
+
+The underlying philosophy is that tight feedback loops through automated tests and CI can replace manual oversight more efficiently. If Claude breaks something, the tests catch it immediately, Claude fixes it, and the cycle continues -- all faster than a human could review each intermediate step.
+
+### The Case for Supervised Collaboration
+
+The opposing camp has equally compelling evidence. A widely-referenced DEV.to post on Claude Code pitfalls documented how Claude makes silent architectural decisions when given too much autonomy -- decisions that seem reasonable in isolation but that compound into technical debt or outright bugs. These changes often look plausible enough to pass a quick review, making them particularly insidious.
+
+Premature implementation is consistently cited as one of the top failure modes of Claude Code. When given autonomy, Claude's bias is toward producing code immediately rather than exploring the problem space. Even casual remarks in conversation can trigger Claude to start making changes, and without a human moderating that impulse, the result is often code that solves the wrong problem efficiently.
+
+Several experienced practitioners argue that real productivity comes not from letting Claude run free, but from treating it as a supervised collaborator -- an extremely fast junior developer who needs direction but not micromanagement. In this model, the human provides architectural guidance, reviews decisions at key checkpoints, and maintains a mental model of the system that Claude operates within.
+
+The strongest version of this argument holds that all changes should require explicit human review, not because Claude's code is bad, but because the human's understanding of the codebase degrades when they stop reviewing what goes into it. Autonomy creates a comprehension gap that eventually manifests as an inability to debug, extend, or explain the system.
+
+### Guidance: When Each Approach Makes Sense
+
+**Lean toward higher autonomy when:**
+- You have comprehensive test coverage (80%+ with meaningful integration tests)
+- Tasks are well-scoped and isolated (adding a new endpoint, writing a utility function)
+- The codebase has strong type checking and linting that catches common errors
+- You are comfortable reviewing diffs after the fact rather than guiding each step
+- The cost of a mistake is low (internal tooling, prototypes, early-stage projects)
+
+**Lean toward tighter supervision when:**
+- You are working on production systems where mistakes are costly
+- The task involves architectural decisions or cross-cutting concerns
+- Test coverage is thin or the area of code is poorly understood
+- You are new to the codebase and need to build understanding alongside Claude
+- The work involves security-sensitive code, data migrations, or infrastructure changes
+
+The most successful practitioners tend to be fluid, adjusting autonomy based on the specific task rather than adopting a fixed philosophy. A developer might give Claude full autonomy to generate test boilerplate in the morning and then switch to tight Plan Mode collaboration for an afternoon architecture discussion.
+
+</div>
+
+<div id="contested-2">
+
+## 2. Auto-Generate vs. Hand-Craft CLAUDE.md
+
+The CLAUDE.md file (or its equivalent memory/rules configuration) is the primary mechanism for giving Claude persistent context about your project. The question of whether to auto-generate it or hand-craft it from scratch is more contentious than it might appear.
+
+### The Case for Auto-Generation
+
+Anthropic provides the `/init` command, which analyzes your codebase to detect build systems, test frameworks, directory structure, code patterns, and conventions. It then generates a CLAUDE.md file that captures this information in a format Claude can use effectively.
+
+Proponents argue that `/init` provides a solid foundation that captures the mechanical details a human might forget or underspecify: the exact test command, the build tool configuration, the linting rules in play. Starting from auto-generation and then refining is faster than starting from a blank file, especially for developers new to Claude Code who may not know what information is most valuable.
+
+For teams onboarding multiple developers, auto-generation also provides consistency. Everyone starts from the same detected baseline rather than each person's idiosyncratic understanding of what matters.
+
+### The Case for Hand-Crafting
+
+The opposing view, articulated forcefully by HumanLayer, is that CLAUDE.md is the single highest-leverage configuration point in your entire Claude Code setup, and the highest-leverage configuration point should never be auto-generated. The reasoning is that a human understands not just what the project is, but what matters about it, what the tricky parts are, what the team's actual priorities are, and what Claude specifically tends to get wrong in this codebase.
+
+Addy Osmani's research provides quantitative support: AI-written rules offer no measurable benefit and can actually reduce task success rates by approximately 3%. Human-curated context, by contrast, gives approximately a 4% improvement. The gap is not enormous in absolute terms, but it is consistent, and it points in a clear direction -- the human's judgment about what to include adds signal that auto-generation cannot replicate.
+
+The concern is not just about what auto-generation includes, but about what it omits. `/init` can detect that you use Jest for testing, but it cannot detect that your team has an unwritten convention about how to structure test files, or that the payments module has a subtle race condition that Claude should avoid triggering, or that the API layer has a specific error-handling pattern that deviations from will cause production incidents.
+
+### Guidance: When Each Approach Makes Sense
+
+**Use `/init` as a starting point when:**
+- You are new to Claude Code and unsure what to include
+- The project is relatively standard (common framework, conventional structure)
+- You plan to immediately review and refine the output
+- You are setting up a quick prototype or exploratory project
+
+**Hand-craft from scratch when:**
+- You have strong opinions about what Claude needs to know
+- The codebase has non-obvious conventions, pitfalls, or architectural decisions
+- You have used Claude Code enough to know what information changes its behavior
+- The project has high stakes and the cost of Claude misunderstanding context is significant
+
+**The pragmatic middle ground:** Run `/init`, read every line of the output critically, delete anything generic or obvious, and then add the context only a human would know: the "why" behind architectural decisions, the areas where Claude tends to go wrong, the team conventions that are not captured in linting rules. Treat the auto-generated version as a first draft, not a finished product. The [Writing CLAUDE.md Guide](/guides/claude-md-guide/) walks through this refinement process step by step, and the [CLAUDE.md Starter Templates](/templates/claude-md-template/) provide proven starting points for common project types.
+
+</div>
+
+<div id="contested-3">
+
+## 3. Multi-Agent: Worth the Overhead?
+
+Running multiple Claude sessions in parallel -- whether as independent workers on separate tasks or as specialized roles (writer, reviewer, planner) -- promises dramatic throughput gains. But the overhead costs are real and not always obvious.
+
+### The Case for Multi-Agent Workflows
+
+The throughput numbers are compelling. Addy Osmani documented achieving 3x throughput by running 3 agents in parallel on well-scoped, independent tasks. Boris Cherny's workflow of 10-15 simultaneous sessions represents an even more aggressive version of this approach, effectively turning one developer into a small team.
+
+Beyond raw throughput, multi-agent setups enable specialization that improves quality. The Writer/Reviewer pattern -- where one Claude session writes code and a separate session reviews it -- catches bugs that a single session misses because the reviewer has fresh context and no sunk-cost bias toward the implementation. This pattern mirrors the well-established value of human code review, where a fresh pair of eyes catches what the author cannot see.
+
+Multi-agent workflows also enable parallelism across different phases of work. One agent can be running tests while another implements the next feature while a third updates documentation. This kind of pipeline parallelism is impossible with a single session regardless of how fast that session operates.
+
+### The Case Against Multi-Agent Workflows
+
+Anthropic's own data reveals the cost: agent teams use approximately [7x more tokens than single-agent workflows](/research/cost-and-context/). This is not simply 3x the tokens for 3x the agents -- the coordination overhead, context sharing, and redundant exploration inflate the cost beyond linear scaling. For teams paying attention to API costs, this multiplier can make multi-agent workflows economically questionable.
+
+Coordination overhead can eliminate gains entirely for small or tightly-coupled tasks. If two agents need to modify the same file, or if Agent B's work depends on Agent A's output, the synchronization cost can exceed the benefit of parallelism. This is the same lesson distributed systems engineering teaches: parallelism helps when work is independent and hurts when it is coupled.
+
+Ambiguous requirements multiply errors in multi-agent setups. When a single agent misunderstands a requirement, you get one wrong implementation to fix. When three agents misunderstand the same ambiguous requirement in three different ways, you get three wrong implementations to untangle. The blast radius of unclear specifications scales with the number of agents.
+
+Anthropic's own guidance suggests the sweet spot is 3-5 simultaneous agents for most workflows, acknowledging that adding agents beyond this point yields diminishing returns while continuing to increase coordination complexity and cost.
+
+### Guidance: When Each Approach Makes Sense
+
+**Multi-agent is worth it when:**
+- Tasks are genuinely independent (separate files, separate features, separate modules)
+- Each task is well-scoped with clear acceptance criteria
+- You have the infrastructure to manage parallel sessions (worktrees, separate branches)
+- The throughput gain matters more than the token cost (deadline pressure, high developer hourly cost)
+- You use the Writer/Reviewer pattern for high-stakes code
+
+**Single-agent is better when:**
+- Tasks are small enough that parallelism adds no meaningful time savings
+- Work is tightly coupled across files or modules
+- Requirements are still being explored or clarified
+- Token budget is constrained
+- You are working in a codebase where Claude frequently needs guidance (supervision cost per agent is high)
+
+**The practical approach:** Start with a single agent. When you find yourself waiting for Claude to finish one task before starting the next, and the tasks are independent, spin up a second session. Add agents based on observed bottlenecks, not theoretical throughput curves. Most developers find their practical sweet spot is 2-4 simultaneous sessions. For implementation guidance, see the [Multi-Agent Patterns Guide](/guides/multi-agent-guide/) and [Subagent Definition Examples](/templates/agents-examples/).
+
+</div>
+
+<div id="contested-4">
+
+## 4. Model Selection Strategy
+
+Claude Code supports multiple model tiers, and how to allocate them across different tasks is a genuine strategic question with competing philosophies.
+
+### The Case for Mixed Models
+
+Anthropic explicitly supports mixed-model workflows. The `opusplan` configuration uses Opus for planning and architectural reasoning while delegating implementation to Sonnet, aiming to get Opus-quality strategic thinking at Sonnet-level cost for the bulk of token usage.
+
+A common Reddit pattern takes this further: Opus for planning and code review, Sonnet for implementation and boilerplate generation, with the model switch happening at task boundaries. The reasoning is that planning and review require the deepest understanding and most nuanced judgment, while implementation of a well-specified plan is more mechanical and can be handled effectively by a faster, cheaper model.
+
+This approach can reduce costs significantly. If 70% of tokens go to implementation and implementation uses Sonnet instead of Opus, the overall cost drops substantially while maintaining high-quality architectural decisions.
+
+### The Case for Opus Everywhere
+
+The counter-argument is straightforward: consistency. When you switch models mid-workflow, nuance can be lost. Opus might develop a subtle understanding of a design constraint during planning that Sonnet does not carry forward into implementation with the same fidelity. The resulting code might be technically correct but miss the deeper intent.
+
+Sankalp and others have observed that the capability gap between Opus and Sonnet is narrowing with each release. As the gap shrinks, the cost savings of mixed-model workflows decrease while the consistency cost remains. If Sonnet gets close enough to Opus quality, the argument for mixing weakens -- but if the gap remains meaningful for your specific use case, mixing still saves money.
+
+There is also a workflow simplicity argument. Managing model selection adds cognitive overhead. Deciding which model to use for which task, configuring the switches, and debugging issues that might stem from model transitions all take time. Using Opus everywhere eliminates an entire category of decisions.
+
+### Guidance: When Each Approach Makes Sense
+
+**Use mixed models when:**
+- Token costs are a meaningful constraint
+- Your workflow has clear boundaries between planning and implementation
+- Implementation tasks are well-specified enough that Sonnet handles them reliably
+- You have tested Sonnet on your specific codebase and confirmed acceptable quality
+
+**Use a single top-tier model when:**
+- Consistency matters more than cost (complex refactoring, nuanced architectural work)
+- Tasks do not decompose cleanly into "planning" and "implementation" phases
+- You are working in a domain where subtle understanding matters (security, performance-critical code)
+- The cost difference is not material relative to developer time saved
+
+**The pragmatic choice:** Start with mixed models using Anthropic's `opusplan` configuration. If you notice quality issues in implementation that trace back to model capability rather than prompt quality, switch to Opus for those task types. Let observed outcomes drive model selection rather than theoretical capability comparisons.
+
+</div>
+
+<div id="contested-5">
+
+## 5. CLAUDE.md: 60 Lines or 300?
+
+The optimal length for CLAUDE.md is surprisingly contentious. The file needs to convey enough context to meaningfully improve Claude's performance, but not so much that it overwhelms the context window or triggers instruction-following degradation.
+
+### The Case for Ultra-Short (60-100 Lines)
+
+Boris Cherny, one of the most productive documented Claude Code users, works with a CLAUDE.md of approximately 100 lines -- and reports that it outperforms the 800-line configurations he has seen others use. His argument is that a shorter file forces you to prioritize ruthlessly, including only the information that actually changes Claude's behavior.
+
+HumanLayer recommends an ideal length of around 60 lines, arguing that every additional line competes for attention in Claude's context window. Just as a human developer's eyes glaze over when handed a 20-page onboarding document, Claude's effective adherence to instructions degrades as the instruction set grows.
+
+Research on instruction-following in large language models supports this position. There is a well-documented phenomenon where adding more instructions does not linearly improve compliance -- instead, compliance with any individual instruction decreases as the total number of instructions grows. A CLAUDE.md with 10 critical rules may see higher compliance with each rule than a CLAUDE.md with 50 rules that includes the same 10 critical rules buried among 40 less important ones.
+
+The ultra-short philosophy treats CLAUDE.md as a prioritized filter: include only what would prevent Claude's most common and costly mistakes in this specific codebase, and nothing else.
+
+### The Case for Longer Files (With Structure)
+
+Not every project fits in 60 lines. Complex monorepos with multiple languages, build systems, and deployment targets may genuinely need more context. A Kubernetes-based microservices architecture with shared libraries, multiple API versions, and environment-specific configurations has more essential context than a single-language web application.
+
+Progressive disclosure techniques extend the effective length of CLAUDE.md without triggering instruction degradation. Using hierarchical CLAUDE.md files (project root plus subdirectory-specific files), conditional sections, and references to external documentation allows the total available context to be much larger while keeping what Claude actually reads for any given task focused and manageable.
+
+Some teams have found value in using CLAUDE.md as living team documentation that goes beyond Claude's immediate needs. By including architectural decision records, conventions, and rationale, the file serves double duty: it guides Claude and it onboards new human team members. In this view, the file's length is justified by its broader utility, even if Claude does not benefit from every line.
+
+### Guidance: When Each Approach Makes Sense
+
+**Keep it under 100 lines when:**
+- The project is a single-language application with conventional structure
+- You can identify a clear set of rules that prevent Claude's most common mistakes
+- You are experiencing instruction-following degradation (Claude ignoring rules in the file)
+- You are optimizing for Claude's performance specifically, not dual-purposing the file
+
+**Allow longer files (150-300 lines) when:**
+- The project is a monorepo or has genuinely complex structure
+- You use progressive disclosure (subdirectory CLAUDE.md files, hierarchical structure)
+- The file serves as team documentation beyond Claude's needs
+- You have tested and confirmed that Claude follows the additional instructions reliably
+
+**Never exceed 300 lines in a single file.** If you find yourself writing more, split into hierarchical files (root CLAUDE.md plus subdirectory-specific files), use `.claude/settings.json` for mechanical rules, or move reference material into separate files that Claude can read on demand. For concrete examples of both short and structured longer files, see the [CLAUDE.md Starter Templates](/templates/claude-md-template/).
+
+**The practical test:** If Claude keeps violating a rule that is in your CLAUDE.md, the file is probably too long and the rule is getting lost. Shorten the file until compliance improves. If Claude handles your project well with 60 lines, adding more lines will not make it handle the project better -- it may make it handle the project worse.
+
+</div>
+
+---
+
+## Summary Table
+
+| Practice | Position A | Position B | Key Decision Factor |
+|---|---|---|---|
+| Autonomy level | Full bypass with test safety net | Supervised collaboration | Test coverage quality and risk tolerance |
+| CLAUDE.md generation | Auto-generate with `/init` | Hand-craft from scratch | Developer's Claude Code experience level |
+| Multi-agent workflows | Parallel agents for throughput | Single agent for focus | Task independence and coupling |
+| Model selection | Mixed models for cost optimization | Single top-tier for consistency | Budget constraints vs. consistency needs |
+| CLAUDE.md length | Ultra-short (60-100 lines) | Structured longer files | Project complexity and instruction compliance |
+
+The common thread across all five debates is that context determines the right answer. Practitioners who insist one approach is universally correct are usually describing what works for their specific situation. The most effective Claude Code users are those who understand both sides of each debate and choose deliberately based on their circumstances.

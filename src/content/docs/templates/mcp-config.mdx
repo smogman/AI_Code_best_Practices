@@ -1,0 +1,383 @@
+---
+title: MCP Server Configuration
+description: Ready-to-use MCP server configurations for common development tools
+---
+
+The Model Context Protocol (MCP) connects Claude Code to external tools and data sources. Instead of being limited to reading files and running shell commands, MCP lets Claude query databases, monitor error trackers, control browsers, and interact with any service that has an MCP server.
+
+## Why MCP matters
+
+Without MCP, getting Claude to query your database means asking it to write and run raw SQL in a shell. With MCP, Claude can use a purpose-built database tool that enforces read-only access, handles connection pooling, and returns structured results. The same pattern applies to every external service: MCP provides safe, structured access rather than ad-hoc shell scripting. For where MCP fits into the overall project configuration flow, see the [Project Setup Checklist](/guides/project-setup/#setup-5).
+
+## How to configure MCP servers
+
+MCP servers are configured in a `.mcp.json` file at the root of your project. This file defines which servers are available, how to start them, and what arguments or environment variables they need.
+
+### File structure
+
+```json
+{
+  "mcpServers": {
+    "server-name": {
+      "command": "command-to-start-server",
+      "args": ["arg1", "arg2"],
+      "env": {
+        "ENV_VAR": "value"
+      }
+    }
+  }
+}
+```
+
+### Adding servers via CLI
+
+You can also add servers using the `claude mcp add` command, which writes to `.mcp.json` for you:
+
+```bash
+# Add a server to the project scope (writes to .mcp.json)
+claude mcp add server-name --command "npx" --args "-y @some/mcp-server"
+
+# Add a server to user scope (writes to ~/.claude/settings.json)
+claude mcp add --scope user server-name --command "npx" --args "-y @some/mcp-server"
+```
+
+### Configuration scopes
+
+| Scope | Location | Shared with team | Use case |
+|---|---|---|---|
+| Project | `.mcp.json` in project root | Yes (committed to git) | Servers the whole team needs |
+| User | `~/.claude/settings.json` | No (local only) | Personal servers, servers with personal tokens |
+
+**Best practice**: Define servers in project scope (`.mcp.json`) with environment variable references for credentials. Each developer sets the actual token values in their local shell environment. This way the server configuration is shared but secrets stay local.
+
+## Configuration templates
+
+import ContentPanels from '../../../components/ContentPanels';
+
+<ContentPanels client:load accentColor="#fbbf24" items={[
+  { id: "mcp-postgres", title: "PostgreSQL", description: "Read-only database access for debugging — Claude can inspect schemas, run queries, and analyze data.", icon: "🐘", date: "2026-04-11" },
+  { id: "mcp-sentry", title: "Sentry", description: "Error monitoring integration — query production issues, view stack traces, identify regression sources.", icon: "🔴", date: "2026-04-11" },
+  { id: "mcp-github", title: "GitHub", description: "Repository management — PRs, issues, comments, and code search via the gh CLI.", icon: "🐙", date: "2026-04-11" },
+  { id: "mcp-playwright", title: "Playwright", description: "Browser automation for UI testing — navigate, click, screenshot, and verify visual changes.", icon: "🎭", date: "2026-04-11" },
+  { id: "mcp-filesystem", title: "Filesystem", description: "Scoped directory access for reading files outside the project root.", icon: "📁", date: "2026-04-11" },
+]} />
+
+<div id="mcp-postgres">
+
+### 1. PostgreSQL (read-only)
+
+Connect Claude to your PostgreSQL database with read-only access. This lets Claude explore schemas, query data, and debug issues without any risk of accidental writes.
+
+```json
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "${POSTGRES_CONNECTION_STRING}"
+      ],
+      "env": {
+        "POSTGRES_CONNECTION_STRING": ""
+      }
+    }
+  }
+}
+```
+
+**Setup steps:**
+
+1. Create a read-only database user:
+
+```sql
+-- Run this as your database admin
+CREATE ROLE claude_readonly WITH LOGIN PASSWORD 'a-strong-random-password';
+GRANT CONNECT ON DATABASE your_database TO claude_readonly;
+GRANT USAGE ON SCHEMA public TO claude_readonly;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO claude_readonly;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO claude_readonly;
+```
+
+2. Set the connection string in your environment:
+
+```bash
+# Add to your .bashrc, .zshrc, or .env.local (never committed)
+export POSTGRES_CONNECTION_STRING="postgresql://claude_readonly:a-strong-random-password@localhost:5432/your_database"
+```
+
+3. Verify the connection:
+
+```bash
+claude mcp add postgres -- npx -y @modelcontextprotocol/server-postgres "$POSTGRES_CONNECTION_STRING"
+```
+
+</div>
+
+<div id="mcp-sentry">
+
+### 2. Sentry error monitoring
+
+Connect Claude to your Sentry project so it can look up errors, read stack traces, and correlate issues with code changes.
+
+```json
+{
+  "mcpServers": {
+    "sentry": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@sentry/mcp-server"
+      ],
+      "env": {
+        "SENTRY_AUTH_TOKEN": "",
+        "SENTRY_ORGANIZATION": ""
+      }
+    }
+  }
+}
+```
+
+**Setup steps:**
+
+1. Create a Sentry internal integration or auth token at `Settings > Developer Settings > Internal Integrations` in your Sentry organization.
+2. Grant the token read-only access to: Project, Issue & Event, Organization.
+3. Set environment variables:
+
+```bash
+export SENTRY_AUTH_TOKEN="sntrys_your_token_here"
+export SENTRY_ORGANIZATION="your-org-slug"
+```
+
+</div>
+
+<div id="mcp-github">
+
+### 3. GitHub
+
+Claude Code has built-in GitHub integration via the `gh` CLI. In most cases, you do not need a separate MCP server for GitHub. However, if you want to use the dedicated MCP server (for example, in environments where `gh` is not available):
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+      }
+    }
+  }
+}
+```
+
+**Setup steps:**
+
+1. Create a personal access token at `github.com > Settings > Developer settings > Personal access tokens > Fine-grained tokens`.
+2. Grant access to the specific repositories you want Claude to interact with.
+3. Recommended permissions: Contents (read), Issues (read/write), Pull requests (read/write), Metadata (read).
+4. Set the environment variable:
+
+```bash
+export GITHUB_PERSONAL_ACCESS_TOKEN="github_pat_your_token_here"
+```
+
+**Note**: If `gh auth status` shows you are already authenticated, the built-in GitHub tools will work without any MCP configuration. Only add this server if you have a specific reason.
+
+</div>
+
+<div id="mcp-playwright">
+
+### 4. Playwright (browser testing)
+
+Give Claude the ability to control a browser for end-to-end testing, web scraping, or debugging UI issues.
+
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest"
+      ]
+    }
+  }
+}
+```
+
+**Setup steps:**
+
+1. Install Playwright browsers (if not already installed):
+
+```bash
+npx playwright install
+```
+
+2. No credentials needed --- Playwright runs locally.
+
+**Usage examples:**
+
+- "Open our app at localhost:3000 and check if the login form renders correctly."
+- "Navigate to /dashboard, take a screenshot, and check for layout issues."
+- "Fill in the signup form and verify the success redirect."
+
+**Options**: You can pass additional arguments to control the browser:
+
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--headless"
+      ]
+    }
+  }
+}
+```
+
+</div>
+
+<div id="mcp-filesystem">
+
+### 5. Filesystem access (scoped directories)
+
+Grant Claude structured access to specific directories outside the project root. Useful for reading logs, config files, or shared resources.
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/path/to/allowed/directory",
+        "/path/to/another/allowed/directory"
+      ]
+    }
+  }
+}
+```
+
+**Setup steps:**
+
+1. Decide which directories Claude should have access to. Be specific --- do not grant access to your entire home directory.
+2. Update the args array with absolute paths to allowed directories.
+
+**Example: access shared design tokens and logs:**
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/var/log/myapp",
+        "/home/shared/design-tokens"
+      ]
+    }
+  }
+}
+```
+
+**Note**: The filesystem server restricts access to only the directories you list. Claude cannot traverse up to parent directories or access anything outside the specified paths.
+
+</div>
+
+## Complete example: full-stack project
+
+Here is a complete `.mcp.json` for a typical full-stack project that uses PostgreSQL, Sentry, and Playwright:
+
+```json
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "${POSTGRES_CONNECTION_STRING}"
+      ],
+      "env": {
+        "POSTGRES_CONNECTION_STRING": ""
+      }
+    },
+    "sentry": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@sentry/mcp-server"
+      ],
+      "env": {
+        "SENTRY_AUTH_TOKEN": "",
+        "SENTRY_ORGANIZATION": ""
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--headless"
+      ]
+    }
+  }
+}
+```
+
+## Security best practices
+
+**Use read-only database users.** Create a dedicated database role with SELECT-only permissions. Never give Claude a connection string for a user that can INSERT, UPDATE, DELETE, or DROP. Even if Claude would not intentionally run destructive queries, read-only access is a hard guardrail that eliminates an entire category of accidents. This is one of the [consensus best practices](/research/consensus-practices/) across all Claude Code practitioners.
+
+**Store credentials in environment variables.** Never put tokens, passwords, or connection strings directly in `.mcp.json`. Use empty string values in the env block and set the actual values in your shell profile or a `.env.local` file that is gitignored.
+
+**Never commit tokens to version control.** If a token accidentally ends up in a commit, rotate it immediately. Git history is permanent --- deleting the file from HEAD does not remove it from history. Consider using a [pre-commit hook](/templates/hooks-examples/) to block accidental commits of secret files.
+
+**Scope tokens to minimum required permissions.** When creating API tokens for GitHub, Sentry, or other services, grant only the specific permissions needed. Read-only access is sufficient for most Claude Code use cases.
+
+**Review MCP server packages before installing.** MCP servers run code on your machine. Only use servers from trusted sources. Check the package on npm or GitHub before adding it.
+
+**Use project scope for shared config, user scope for personal tokens.** The `.mcp.json` file can contain env var references that each developer fills in locally. This lets the team share the server configuration without sharing credentials.
+
+## Team sharing workflow
+
+1. **Add `.mcp.json` to version control** with environment variable references (empty values in the env block).
+2. **Document required environment variables** in your project README or [CLAUDE.md](/templates/claude-md-template/) under a "Setup" section.
+3. **Each developer** creates the required tokens and sets them in their shell profile:
+
+```bash
+# ~/.bashrc or ~/.zshrc
+export POSTGRES_CONNECTION_STRING="postgresql://claude_readonly:password@localhost:5432/mydb"
+export SENTRY_AUTH_TOKEN="sntrys_..."
+export SENTRY_ORGANIZATION="my-org"
+```
+
+4. **Add sensitive files to `.gitignore`**:
+
+```
+# .gitignore
+.env
+.env.local
+.env.*.local
+```
+
+5. When a new developer joins, they clone the repo, see the `.mcp.json` with the required servers, set up their local environment variables, and everything works.
+
+## Troubleshooting
+
+**Server fails to start**: Run the server command manually in your terminal to see the full error output. Common issues: missing environment variables, `npx` not found, Node.js version too old.
+
+**Permission denied errors**: Check that your database user or API token has the required permissions. For PostgreSQL, verify with `\du` in psql.
+
+**Server times out**: Some MCP servers take a few seconds to start, especially when `npx` needs to download the package for the first time. If using `npx`, consider installing the package globally or as a dev dependency to speed up startup.
+
+**Environment variables not loaded**: Verify with `echo $VAR_NAME` in your terminal. If using `.env.local`, make sure your shell profile or a tool like `direnv` loads it.

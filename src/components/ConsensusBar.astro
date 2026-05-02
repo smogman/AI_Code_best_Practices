@@ -1,0 +1,54 @@
+---
+interface Props {
+  level: 1 | 2 | 3 | 4 | 5;
+  sourceCount: number;
+}
+
+const { level, sourceCount } = Astro.props;
+
+const percentage = (level / 5) * 100;
+
+const colorStops: Record<number, string> = {
+  1: '#ef4444',
+  2: '#f97316',
+  3: '#eab308',
+  4: '#22c55e',
+  5: '#16a34a',
+};
+---
+
+<div class="consensus-bar-wrapper">
+  <div class="consensus-bar">
+    <div
+      class="consensus-fill"
+      style={`width: ${percentage}%; background-color: ${colorStops[level]}`}
+    />
+  </div>
+  <span class="consensus-sources">{sourceCount} source{sourceCount !== 1 ? 's' : ''}</span>
+</div>
+
+<style>
+  .consensus-bar-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .consensus-bar {
+    flex: 1;
+    height: 8px;
+    background-color: var(--sl-color-gray-5);
+    border-radius: 4px;
+    overflow: hidden;
+    max-width: 120px;
+  }
+  .consensus-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+  }
+  .consensus-sources {
+    font-size: 0.75rem;
+    color: var(--sl-color-gray-3);
+    white-space: nowrap;
+  }
+</style>

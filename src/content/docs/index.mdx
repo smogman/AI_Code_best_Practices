@@ -1,0 +1,44 @@
+---
+title: Claude Code Best Practices
+description: Research-backed guide to getting the most out of Claude Code - synthesized from 26 sources
+template: splash
+hero:
+  tagline: Research-backed practices from 26 sources. Official docs, the Claude Code creator, industry leaders, and community experience — organized, rated, and ready to use.
+  actions:
+    - text: Start with Consensus Practices
+      link: /research/consensus-practices/
+      icon: right-arrow
+    - text: View All Sources
+      link: /research/sources/
+      variant: minimal
+---
+
+import PanelGrid from '../../components/PanelGrid';
+
+## What's Inside
+
+<PanelGrid client:load />
+
+## Key Findings at a Glance
+
+### What Nearly Everyone Agrees On
+
+1. **Context window is your #1 resource** — Performance degrades as it fills. Use `/clear`, subagents, and fresh sessions aggressively.
+2. **Give Claude verification loops** — Tests, linters, screenshots. The single highest-leverage practice (2-3x quality improvement).
+3. **Plan before coding** — Use Plan Mode for non-trivial tasks. Separate exploration from execution.
+4. **Keep CLAUDE.md concise** — Under 300 lines. The creator uses ~100 and outperforms 800-line configs.
+5. **Test-driven development** — Have AI write tests first, then minimum code to pass them.
+
+### What People Debate
+
+- **Autonomy level**: Full bypass mode vs. human-in-the-loop for every change
+- **Multi-agent value**: 10-15 parallel sessions vs. focused single-agent work
+- **CLAUDE.md generation**: Auto-generate with `/init` vs. always hand-craft
+- **Model selection**: Opus for everything vs. Opus planning + Sonnet implementation
+
+### Common Pitfalls
+
+- Kitchen sink sessions mixing unrelated tasks
+- Repeated corrections polluting context
+- Claude making silent architectural decisions
+- Over-specified CLAUDE.md causing instruction-following collapse

@@ -1,0 +1,316 @@
+@import "tailwindcss";
+
+/* ============================================
+   GLASSMORPHISM THEME FOR STARLIGHT
+   ============================================ */
+
+:root {
+  /* Glass background gradient */
+  --glass-bg: rgba(15, 15, 35, 0.6);
+  --glass-bg-hover: rgba(25, 25, 55, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-hover: rgba(255, 255, 255, 0.15);
+  --glass-blur: 16px;
+  --glass-glow: rgba(99, 102, 241, 0.15);
+  --accent-gradient: linear-gradient(135deg, #6366f1, #8b5cf6, #a78bfa);
+  --bg-gradient: linear-gradient(135deg, #0a0a1a 0%, #0f0f2e 30%, #1a0a2e 60%, #0a1628 100%);
+}
+
+/* Dark background with subtle gradient */
+[data-theme="dark"],
+:root {
+  --sl-color-bg: #0a0a1a;
+  --sl-color-bg-nav: rgba(10, 10, 30, 0.85);
+  --sl-color-bg-sidebar: rgba(10, 10, 30, 0.7);
+  --sl-color-hairline: rgba(255, 255, 255, 0.06);
+  --sl-color-accent: #818cf8;
+  --sl-color-accent-high: #a5b4fc;
+  --sl-color-accent-low: rgba(99, 102, 241, 0.15);
+}
+
+/* Global background gradient */
+body {
+  background: var(--bg-gradient) !important;
+  background-attachment: fixed !important;
+  min-height: 100vh;
+}
+
+/* Animated background orbs */
+body::before {
+  content: '';
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(59, 130, 246, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: -1;
+  animation: float-orbs 30s ease-in-out infinite;
+}
+
+@keyframes float-orbs {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(2%, -1%) rotate(2deg); }
+  66% { transform: translate(-1%, 2%) rotate(-1deg); }
+}
+
+/* ============================================
+   NAVIGATION - Glass effect
+   ============================================ */
+
+/* Top nav bar */
+.header,
+header.header,
+nav[aria-label="Main"] {
+  backdrop-filter: blur(20px) saturate(1.5) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.5) !important;
+  background: rgba(10, 10, 30, 0.75) !important;
+  border-bottom: 1px solid var(--glass-border) !important;
+}
+
+/* Sidebar */
+.sidebar-pane,
+nav[aria-label="Main"] .sidebar {
+  backdrop-filter: blur(16px) saturate(1.3) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.3) !important;
+  background: rgba(10, 10, 30, 0.5) !important;
+}
+
+/* Sidebar links */
+nav[aria-label="Main"] a,
+.sidebar-content a {
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+nav[aria-label="Main"] a:hover,
+.sidebar-content a:hover {
+  background: rgba(99, 102, 241, 0.1) !important;
+}
+
+nav[aria-label="Main"] a[aria-current="page"],
+.sidebar-content a[aria-current="page"] {
+  background: rgba(99, 102, 241, 0.15) !important;
+  border-left: 2px solid var(--sl-color-accent) !important;
+}
+
+/* ============================================
+   CONTENT AREA - Glass panels
+   ============================================ */
+
+/* Main content wrapper */
+.main-pane,
+main {
+  background: transparent !important;
+}
+
+/* Content area glass effect */
+.content-panel,
+.sl-markdown-content {
+  position: relative;
+}
+
+/* Starlight cards with glass effect */
+.sl-link-card,
+.card {
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.3) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.3) !important;
+  background: var(--glass-bg) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 16px !important;
+  transition: all 0.3s ease !important;
+  overflow: hidden;
+}
+
+.sl-link-card:hover,
+.card:hover {
+  background: var(--glass-bg-hover) !important;
+  border-color: var(--glass-border-hover) !important;
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+  transform: translateY(-2px);
+}
+
+/* ============================================
+   CODE BLOCKS - Glass effect
+   ============================================ */
+
+.expressive-code,
+.expressive-code pre {
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  background: rgba(10, 10, 30, 0.7) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 12px !important;
+}
+
+.expressive-code .frame {
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+
+/* ============================================
+   TABLES - Glass styling
+   ============================================ */
+
+.sl-markdown-content table {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  overflow: hidden;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.sl-markdown-content th {
+  background: rgba(99, 102, 241, 0.1) !important;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.sl-markdown-content td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.sl-markdown-content tr:hover td {
+  background: rgba(99, 102, 241, 0.05);
+}
+
+/* ============================================
+   BLOCKQUOTES - Glass accent
+   ============================================ */
+
+.sl-markdown-content blockquote {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(99, 102, 241, 0.06);
+  border-left: 3px solid var(--sl-color-accent);
+  border-radius: 0 12px 12px 0;
+  padding: 1rem 1.25rem;
+}
+
+/* ============================================
+   HERO SECTION - Glass treatment
+   ============================================ */
+
+.hero {
+  position: relative;
+}
+
+.hero .tagline {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ============================================
+   HEADINGS - Subtle glow
+   ============================================ */
+
+.sl-markdown-content h1 {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.sl-markdown-content h2 {
+  color: var(--sl-color-accent-high);
+  border-bottom: 1px solid var(--glass-border);
+  padding-bottom: 0.5rem;
+}
+
+/* ============================================
+   SCROLLBAR - Themed
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(10, 10, 30, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.5);
+}
+
+/* ============================================
+   SEARCH - Glass
+   ============================================ */
+
+dialog,
+[role="dialog"] {
+  backdrop-filter: blur(24px) saturate(1.5) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.5) !important;
+  background: rgba(10, 10, 30, 0.9) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 16px !important;
+}
+
+/* ============================================
+   STARLIGHT OVERRIDES
+   ============================================ */
+
+/* Remove default background colors that fight the glass */
+.page,
+.main-frame {
+  background: transparent !important;
+}
+
+/* Pagination links */
+.pagination-links a {
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  background: var(--glass-bg) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 12px !important;
+  transition: all 0.3s ease !important;
+}
+
+.pagination-links a:hover {
+  background: var(--glass-bg-hover) !important;
+  border-color: var(--glass-border-hover) !important;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.1) !important;
+}
+
+/* Table of contents */
+starlight-toc {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Mobile menu */
+starlight-menu-button + nav {
+  backdrop-filter: blur(20px) saturate(1.5) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.5) !important;
+  background: rgba(10, 10, 30, 0.95) !important;
+}
+
+/* ============================================
+   MODAL - Ensure it sits above everything
+   ============================================ */
+
+/* When body overflow is hidden (modal open), suppress Starlight sticky elements */
+body[style*="overflow: hidden"] starlight-toc,
+body[style*="overflow: hidden"] .right-sidebar,
+body[style*="overflow: hidden"] .right-sidebar-panel {
+  display: none !important;
+}
+
+body[style*="overflow: hidden"] .sidebar-pane {
+  z-index: 1 !important;
+}
+
+body[style*="overflow: hidden"] header.header {
+  z-index: 1 !important;
+}

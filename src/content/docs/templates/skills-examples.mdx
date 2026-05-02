@@ -1,0 +1,390 @@
+---
+title: Skills Examples
+description: Ready-to-use skill files for common Claude Code workflows
+---
+
+Skills are reusable prompt files that teach Claude Code how to perform multi-step workflows. They live in the `.claude/skills/` directory of your project (or `~/.claude/skills/` for user-global skills) and can be invoked with slash commands during a conversation. The [CLAUDE.md guide](/guides/claude-md-guide/#cmd-disclosure) explains how skills fit into the progressive disclosure strategy for keeping your CLAUDE.md lean.
+
+## How skills work
+
+- Each skill is a Markdown file with optional YAML frontmatter.
+- The file name (minus extension) becomes the slash command: `.claude/skills/fix-issue.md` is invoked with `/fix-issue`.
+- The body of the file is injected as instructions when the skill is triggered.
+- Frontmatter fields control metadata: `name`, `description`, and `disable-model-invocation` (prevents Claude from auto-triggering the skill without explicit invocation).
+
+import ContentPanels from '../../../components/ContentPanels';
+
+<ContentPanels client:load accentColor="#fbbf24" items={[
+  { id: "skill-fix", title: "Fix GitHub Issue", description: "Reads a GitHub issue, searches the codebase, implements the fix, writes tests, and creates a PR.", icon: "🔧", date: "2026-04-11" },
+  { id: "skill-review", title: "Code Review", description: "Reviews staged changes for correctness, security vulnerabilities, and pattern consistency.", icon: "🔍", date: "2026-04-11" },
+  { id: "skill-api", title: "New API Endpoint", description: "Scaffolds a REST endpoint following project conventions — route, validation, tests, and docs.", icon: "🌐", date: "2026-04-11" },
+  { id: "skill-refactor", title: "Refactor", description: "Safely refactors code with test verification — understands scope, plans changes, executes incrementally.", icon: "♻️", date: "2026-04-11" },
+  { id: "skill-research", title: "Research", description: "Searches the web for information, evaluates sources, and captures structured findings.", icon: "🔬", date: "2026-04-11" },
+]} />
+
+<div id="skill-fix">
+
+## Skill 1: Fix GitHub issue
+
+Save as `.claude/skills/fix-issue.md`
+
+```markdown
+---
+name: fix-issue
+description: Read a GitHub issue, find the relevant code, implement a fix, write tests, and open a PR.
+---
+
+# Fix GitHub Issue
+
+Follow these steps precisely:
+
+## Step 1: Read the issue
+
+- Use `gh issue view <number>` to read the full issue description, labels, and comments.
+- Summarize the problem in one sentence before proceeding.
+- Identify acceptance criteria from the issue body. If none exist, infer them and state them explicitly.
+
+## Step 2: Understand the codebase context
+
+- Search for files related to the issue keywords using grep and glob tools.
+- Read the most relevant source files to understand the current behavior.
+- Identify the root cause. State it explicitly: "The bug is caused by [X] in [file:line]."
+- Check for existing tests that cover the broken behavior.
+
+## Step 3: Create a branch
+
+- Branch from the latest main: `git checkout -b fix/<issue-number>-<short-description>`.
+- Use lowercase, hyphenated names.
+
+## Step 4: Implement the fix
+
+- Make the minimum change necessary to fix the issue.
+- Follow existing code patterns in the file you are editing.
+- Add code comments only if the fix is non-obvious.
+- Do NOT refactor unrelated code in the same change.
+
+## Step 5: Write or update tests
+
+- Add a test that fails without the fix and passes with it.
+- If the fix changes existing behavior, update affected tests.
+- Run the full test suite to confirm nothing is broken: use the project's test command from CLAUDE.md.
+
+## Step 6: Lint and type-check
+
+- Run the project's lint command.
+- Run the project's type-check command (if applicable).
+- Fix any issues introduced by the change.
+
+## Step 7: Commit and open a PR
+
+- Write a clear commit message referencing the issue: `fix: <description> (fixes #<number>)`.
+- Push the branch and open a PR with:
+  - Title: `fix: <description>`
+  - Body: a summary of the root cause, the fix, and a link to the issue.
+  - Label the PR appropriately.
+- Report the PR URL when done.
+```
+
+</div>
+
+<div id="skill-review">
+
+## Skill 2: Code review
+
+Save as `.claude/skills/code-review.md`
+
+```markdown
+---
+name: code-review
+description: Review current staged or unstaged changes for bugs, security issues, and pattern violations.
+disable-model-invocation: true
+---
+
+# Code Review
+
+Perform a thorough review of the current uncommitted changes.
+
+## Step 1: Gather the diff
+
+- Run `git diff` to see unstaged changes.
+- Run `git diff --cached` to see staged changes.
+- If both exist, review both. If neither exists, inform the user there is nothing to review.
+
+## Step 2: Review for correctness
+
+For each changed file, check:
+
+- **Logic errors**: off-by-one, null/undefined access, missing return statements, incorrect conditionals.
+- **Edge cases**: empty inputs, zero values, very large inputs, concurrent access.
+- **Error handling**: are errors caught? Are error messages helpful? Are errors swallowed silently?
+- **Resource leaks**: unclosed connections, missing cleanup, event listener leaks.
+
+## Step 3: Review for security
+
+Check for:
+
+- SQL injection or NoSQL injection.
+- Cross-site scripting (XSS) in any rendered output.
+- Hardcoded secrets, API keys, or credentials.
+- Insecure use of `eval()`, `dangerouslySetInnerHTML`, or shell exec.
+- Missing input validation or sanitization.
+- Overly permissive CORS or auth checks.
+
+## Step 4: Review for patterns and style
+
+Check for:
+
+- Violations of conventions listed in CLAUDE.md.
+- Inconsistent naming compared to surrounding code.
+- Dead code or unused imports introduced by the change.
+- Functions that are too long or do too many things.
+- Missing or inadequate tests for new logic.
+
+## Step 5: Report findings
+
+Present findings in this format:
+
+### Critical (must fix before merge)
+- [file:line] Description of the issue.
+
+### Warnings (should fix)
+- [file:line] Description of the concern.
+
+### Suggestions (optional improvements)
+- [file:line] Description of the suggestion.
+
+### Summary
+One paragraph overall assessment: is this change safe to merge? What is the biggest risk?
+
+If no issues are found, say so explicitly: "No issues found. The change looks correct and safe to merge."
+```
+
+</div>
+
+<div id="skill-api">
+
+## Skill 3: New API endpoint
+
+Save as `.claude/skills/new-api-endpoint.md`
+
+```markdown
+---
+name: new-api-endpoint
+description: Scaffold a new REST API endpoint following project conventions, including route, handler, validation, tests, and documentation.
+---
+
+# New API Endpoint
+
+Scaffold a complete REST API endpoint. Ask the user for these details if not provided:
+
+1. **Resource name** (e.g., `users`, `invoices`)
+2. **HTTP method and path** (e.g., `POST /api/v1/invoices`)
+3. **Request body or query parameters**
+4. **Response shape**
+5. **Auth requirements** (public, authenticated, admin-only)
+
+## Step 1: Study existing endpoints
+
+- Find 2-3 existing endpoint files in the project to understand the conventions for:
+  - File location and naming
+  - Route registration pattern
+  - Request validation approach (Zod, Joi, class-validator, etc.)
+  - Response format (envelope pattern, raw, etc.)
+  - Error handling pattern
+  - Middleware usage (auth, rate-limiting, logging)
+- State which files you used as reference.
+
+## Step 2: Create the route file
+
+- Create the route/handler file in the correct directory following project naming conventions.
+- Include:
+  - Input validation schema for request body/params/query.
+  - Auth middleware or guard if required.
+  - Handler function with proper error handling.
+  - Response with correct status codes (201 for creation, 200 for retrieval, etc.).
+  - TypeScript types for request and response if applicable.
+
+## Step 3: Register the route
+
+- Add the route to the project's router or route registry following the existing pattern.
+- Ensure it is mounted under the correct path prefix.
+
+## Step 4: Write tests
+
+- Create a test file alongside the route or in the project's test directory.
+- Test cases to include:
+  - Happy path: valid request returns expected response.
+  - Validation: invalid input returns 400 with descriptive error.
+  - Auth: unauthenticated request returns 401 (if auth required).
+  - Auth: unauthorized role returns 403 (if role-restricted).
+  - Not found: accessing a non-existent resource returns 404.
+  - Edge cases specific to the endpoint logic.
+- Run the tests and confirm they pass.
+
+## Step 5: Update documentation
+
+- If the project has an OpenAPI/Swagger spec, add the new endpoint.
+- If the project has API docs in markdown, add the endpoint there.
+- If neither exists, add a brief doc comment at the top of the handler file.
+
+## Step 6: Final check
+
+- Run linter and type-checker.
+- Run the full test suite.
+- Report what was created and where.
+```
+
+</div>
+
+<div id="skill-refactor">
+
+## Skill 4: Refactor
+
+Save as `.claude/skills/refactor.md`
+
+```markdown
+---
+name: refactor
+description: Safely refactor code with full test verification at each step.
+disable-model-invocation: true
+---
+
+# Safe Refactor
+
+Perform a refactoring with a safety-first approach. Ask the user what they want refactored if not clear from context.
+
+## Step 1: Understand scope
+
+- Identify all files that will be affected by the refactoring.
+- Read each file and understand current behavior.
+- List every function, class, or module that will change.
+
+## Step 2: Verify existing test coverage
+
+- Run the project's test suite. Record the result (pass count, fail count).
+- If tests are currently failing, STOP and inform the user. Do not refactor on a red test suite.
+- Identify which tests cover the code being refactored.
+- If coverage is insufficient, write additional tests FIRST that lock in current behavior before making any changes. Run them to confirm they pass.
+
+## Step 3: Plan the refactoring
+
+Present the plan to the user before making changes:
+
+- What changes will be made and why.
+- Which files will be modified, created, or deleted.
+- Any risks or trade-offs.
+- Estimated number of changed lines.
+
+Wait for user confirmation before proceeding.
+
+## Step 4: Execute incrementally
+
+- Make changes in small, testable increments.
+- After each logical step, run the test suite.
+- If tests fail after a step, fix the issue before moving to the next step.
+- Never make more than one conceptual change at a time.
+
+## Step 5: Update tests
+
+- Rename test descriptions if function/class names changed.
+- Add new tests if the refactoring introduced new code paths.
+- Remove tests for code that no longer exists.
+- Run the full suite one final time.
+
+## Step 6: Verify and report
+
+- Run linter and type-checker.
+- Confirm final test count matches or exceeds the initial count.
+- Provide a summary:
+  - What was refactored and why.
+  - Files changed (with line count deltas).
+  - Test results before and after.
+  - Any follow-up work recommended.
+```
+
+</div>
+
+<div id="skill-research">
+
+## Skill 5: Research
+
+Save as `.claude/skills/research.md`
+
+```markdown
+---
+name: research
+description: Search the web for technical information and capture structured findings for the project.
+---
+
+# Research
+
+Search the web for information relevant to the current project or task and compile structured findings.
+
+## Step 1: Clarify the research question
+
+- If the user's request is vague, ask one clarifying question.
+- State the research question explicitly before starting.
+
+## Step 2: Search and gather sources
+
+- Use web search to find relevant information.
+- Prioritize these source types (in order of reliability):
+  1. Official documentation for the technology in question.
+  2. GitHub issues and discussions on the relevant repositories.
+  3. Well-known technical blogs (e.g., from core maintainers).
+  4. Stack Overflow answers with high vote counts.
+  5. Recent conference talks or release notes.
+- Collect at least 3 sources. Note the URL and publication date for each.
+- Discard sources older than 2 years unless they cover stable/unchanged APIs.
+
+## Step 3: Evaluate and synthesize
+
+- Cross-reference claims across multiple sources.
+- Note any conflicting information between sources.
+- Identify the consensus recommendation if one exists.
+- Flag anything that is opinion vs established best practice.
+
+## Step 4: Present findings
+
+Structure the output as follows:
+
+### Research Question
+[The question being answered]
+
+### Summary
+[2-3 sentence executive summary of the answer]
+
+### Detailed Findings
+
+**[Sub-topic 1]**
+- Finding with source attribution.
+- Finding with source attribution.
+
+**[Sub-topic 2]**
+- Finding with source attribution.
+- Finding with source attribution.
+
+### Recommendations for This Project
+[Specific, actionable recommendations based on the findings, taking into account the project's tech stack and constraints from CLAUDE.md]
+
+### Sources
+1. [Title](URL) - date, brief note on relevance
+2. [Title](URL) - date, brief note on relevance
+3. [Title](URL) - date, brief note on relevance
+
+## Step 5: Optionally save findings
+
+If the user asks to save the research, write the findings to a file at `docs/research/<topic-slug>.md` using the same structure above. This creates a searchable knowledge base for the team.
+```
+
+</div>
+
+## Tips for writing your own skills
+
+- **Be specific about the order of operations.** Numbered steps prevent Claude from skipping ahead or doing things out of order.
+- **Include verification steps.** "Run the tests" after each major action catches mistakes early.
+- **Reference CLAUDE.md.** Phrases like "use the project's test command from CLAUDE.md" keep skills generic across projects.
+- **Use `disable-model-invocation: true`** for skills that should only run when explicitly requested (like code-review), not when Claude decides on its own.
+- **Keep skills focused.** One skill, one workflow. Combine them by invoking multiple skills in sequence rather than building a monolithic skill.
+- **Pair skills with hooks** for guardrails that must always apply. Skills are advisory (Claude follows them ~80% of the time), while [hooks](/templates/hooks-examples/) are deterministic. See [Consensus Practices](/research/consensus-practices/) for more on this pattern.
+- **Consider delegating to subagents** for specialized tasks like security review or test writing. See [Subagent Examples](/templates/agents-examples/) for ready-to-use agent definitions.
