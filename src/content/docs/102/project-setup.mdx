@@ -36,7 +36,7 @@ Pre-approve the commands you'll use every session so Claude doesn't prompt you f
 }
 ```
 
-Commit this file — your whole team benefits from it.
+Commit this file. Your whole team benefits from it.
 
 ### 3. Write your `CLAUDE.md`
 
@@ -44,7 +44,7 @@ See the [CLAUDE.md Basics](/AI_Code_best_Practices/102/claude-md-basics/) lesson
 
 ### 4. Make sure your test suite runs cleanly
 
-Before using Claude Code seriously on a project, confirm `npm test` (or your equivalent) passes from a clean state. Claude will run your tests to verify its own work — if tests are already broken, it can't tell whether it caused new failures.
+Before using Claude Code seriously on a project, confirm `npm test` (or your equivalent) passes from a clean state. Claude will run your tests to verify its own work. If tests are already broken, it can't tell whether it caused new failures.
 
 ### 5. Check that your linter is configured
 
@@ -61,11 +61,11 @@ Your teammates can now use Claude Code with the same settings.
 
 ## Optional but Recommended
 
-**Add a `.claude/` entry to `.gitignore` exceptions** — by default `.claude/` might be gitignored on some setups. Make sure `settings.json` is tracked.
+**Add a `.claude/` entry to `.gitignore` exceptions.** By default `.claude/` might be gitignored on some setups. Make sure `settings.json` is tracked.
 
-**Create a scratch branch** — for your first few sessions on a new project, work on a branch. Claude's changes are easy to review and discard with `git diff` and `git checkout`.
+**Create a scratch branch.** For your first few sessions on a new project, work on a branch. Claude's changes are easy to review and discard with `git diff` and `git checkout`.
 
-**Note your architecture in CLAUDE.md** — a two-sentence description of how the app is structured saves Claude significant exploration time at the start of each session.
+**Note your architecture in CLAUDE.md.** A two-sentence description of how the app is structured saves Claude significant exploration time at the start of each session.
 
 ## Quick Verification
 

@@ -8,8 +8,8 @@ import Exercise from '../../../components/Exercise.astro';
 ## When Single-Agent Fails
 
 A single agent degrades on large tasks for two reasons:
-1. **Context exhaustion** — the task needs more information than fits in one window
-2. **Role conflict** — writing code and reviewing it in the same session leads to the same blind spots a human author has
+1. **Context exhaustion:** the task needs more information than fits in one window
+2. **Role conflict:** writing code and reviewing it in the same session leads to the same blind spots a human author has
 
 Multi-agent architectures solve both. Different agents with different contexts, reviewing each other's work.
 
@@ -28,7 +28,7 @@ Main session:
 3. Pass Reviewer's feedback back to Writer: "Address these review findings: [findings]"
 ```
 
-Why it works: the Reviewer hasn't been involved in writing the code. It reads it the way a colleague would during code review — looking for problems, not defending decisions.
+Why it works: the Reviewer hasn't been involved in writing the code. It reads it the way a colleague would during code review, looking for problems, not defending decisions.
 
 Community data suggests this produces significantly higher quality than single-agent implementation + self-review.
 
@@ -69,7 +69,7 @@ Fan-in: "Here are 15 security reports from individual module audits.
 Synthesize them into a prioritized remediation plan."
 ```
 
-The synthesis agent has clean context — it never touched the code, it only reads the reports.
+The synthesis agent has clean context. It never touched the code, it only reads the reports.
 
 ## The SPEC Pipeline
 

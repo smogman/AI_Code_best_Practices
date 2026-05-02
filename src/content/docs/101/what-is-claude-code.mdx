@@ -9,7 +9,7 @@ import Exercise from '../../../components/Exercise.astro';
 
 Claude Code is a command-line AI coding assistant made by Anthropic. You run it in your terminal, inside your project directory, and it can read your files, write code, run commands, and have a conversation with you about your codebase.
 
-The key difference from a chat interface: Claude Code operates *in your environment*. It can see your actual files, run your actual tests, and make real changes. You're not copy-pasting code back and forth — Claude is working directly in your repo.
+The key difference from a chat interface: Claude Code operates *in your environment*. It sees your actual files, runs your actual tests, and makes real changes. You're not copy-pasting code back and forth. Claude works directly in your repo.
 
 ## How It Works
 
@@ -17,7 +17,7 @@ When you start a session, Claude Code:
 
 1. Reads your project structure (and your `CLAUDE.md` if you have one)
 2. Waits for your instruction
-3. Takes actions — reading files, writing code, running commands — and asks your permission before anything destructive
+3. Takes actions (reading files, writing code, running commands) and asks your permission before anything destructive
 4. Shows you what it did and waits for feedback
 
 The conversation is stateful within a session. Claude remembers what it read and did earlier in the same session.
@@ -36,7 +36,7 @@ Then authenticate:
 claude
 ```
 
-The first run will open a browser to authenticate with your Anthropic account. You need an active Claude subscription (Pro or higher) or API access.
+The first run opens a browser to authenticate with your Anthropic account. You need an active Claude subscription (Pro or higher) or API access.
 
 ## Verify It's Working
 
@@ -58,7 +58,7 @@ You should see the Claude Code prompt. Type `hello` to confirm it responds.
 
 **Context window is finite.** Claude can only hold so much in memory at once. Long sessions with many files degrade in quality. You'll learn to manage this in 201.
 
-**It asks before acting.** By default, Claude will ask permission before running bash commands or making file edits. You can adjust this.
+**It asks before acting.** By default, Claude asks permission before running bash commands or making file edits. You can adjust this.
 
 ---
 

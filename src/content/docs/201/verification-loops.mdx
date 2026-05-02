@@ -7,7 +7,7 @@ import Exercise from '../../../components/Exercise.astro';
 
 ## The Core Insight
 
-Claude produces significantly better code when it can verify its own work. Not because it tries harder, but because verification surfaces bugs before they reach you — and Claude can fix them immediately, before the context moves on.
+Claude produces significantly better code when it can verify its own work. Not because it tries harder, but because verification surfaces bugs before they reach you. Claude fixes them immediately, before the context moves on.
 
 This is the practice with the broadest consensus across the community: **give Claude a feedback loop**. Tests, linters, type checks, screenshots — anything that produces pass/fail signals Claude can act on.
 
@@ -17,9 +17,9 @@ Community reports consistently show 2-3x quality improvement from this single pr
 
 A verification loop has three properties:
 
-1. **Fast** — Claude gets feedback quickly. A 30-second test run is fine. A 10-minute build is too slow.
-2. **Unambiguous** — Pass or fail. Not "it seems mostly right."
-3. **Automatic** — Claude can run it without asking you. Pre-approve the command in `.claude/settings.json`.
+1. **Fast**: Claude gets feedback quickly. A 30-second test run is fine. A 10-minute build is too slow.
+2. **Unambiguous**: Pass or fail. Not "it seems mostly right."
+3. **Automatic**: Claude can run it without asking you. Pre-approve the command in `.claude/settings.json`.
 
 ## Types of Verification
 
@@ -32,7 +32,7 @@ Write tests for the new `calculateDiscount()` function first,
 then implement the function to make them pass.
 ```
 
-This is test-driven development with AI. The tests define what correct looks like — Claude can iterate without you.
+This is TDD with AI. The tests define what correct looks like. Claude iterates without you.
 
 If you have existing tests, tell Claude to run them after every change:
 
@@ -93,7 +93,7 @@ Claude should not report "done" until the verification gates pass.
 
 ## What Happens Without Verification
 
-Without a feedback loop, Claude makes a change and reports success based on reasoning alone. It can't tell whether the change introduced a bug — it can only reason about whether it should have. These are different.
+Without a feedback loop, Claude makes a change and reports success based on reasoning alone. It can't tell whether the change introduced a bug. It can only reason about whether it should have. Those are different things.
 
 The failure mode: Claude writes plausible-looking code, says it's done, you approve it, and two sessions later a bug surfaces that would have been caught by a test run.
 

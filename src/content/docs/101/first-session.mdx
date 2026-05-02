@@ -13,7 +13,7 @@ Navigate to your project root and run:
 claude
 ```
 
-Always run Claude from the root of your project — it needs to see the full directory structure to understand your codebase.
+Always run Claude from the root of your project. It needs to see the full directory structure to understand your codebase.
 
 ## Prompting Patterns That Work
 
@@ -29,7 +29,7 @@ Vague prompts get vague results.
 
 ### Give Claude the Full Picture
 
-Claude only knows what's in the conversation. If a bug requires understanding three files, tell it which three files matter. If there's a constraint it should know about, say it upfront.
+Claude only knows what's in the conversation. If a bug requires understanding three files, tell it which three files matter. If there's a constraint it needs to know about, say it upfront.
 
 ```
 The checkout flow lives in src/checkout/. The issue is in CheckoutForm.tsx — 
@@ -42,7 +42,7 @@ src/utils/validation.ts.
 
 Multi-part requests dilute focus. Claude is better at "fix the null check in auth.ts" than "fix the null check, add tests, update the README, and refactor the helper functions."
 
-The session is stateful — do things in sequence rather than stacking them.
+The session is stateful. Do things in sequence rather than stacking them.
 
 ## Reading Claude's Output
 
@@ -51,7 +51,7 @@ Claude will typically:
 2. **Show you the changes** in a diff-like view
 3. **Tell you what it did** after completing
 
-If something looks wrong at step 1, say so before it proceeds. It's easier to redirect than to undo.
+If something looks wrong at step 1, say so before it proceeds. Redirecting is easier than undoing.
 
 ## Giving Feedback Mid-Session
 
@@ -65,7 +65,7 @@ Claude will course-correct. Repeated corrections in a long session can dilute th
 
 ## Ending a Session
 
-Type `/exit` or press `Ctrl+C`. There's nothing to save — changes Claude made to your files are already on disk.
+Type `/exit` or press `Ctrl+C`. There's nothing to save. Changes Claude made to your files are already on disk.
 
 ---
 
@@ -76,7 +76,7 @@ Type `/exit` or press `Ctrl+C`. There's nothing to save — changes Claude made 
 **Steps:**
 1. Open a project with a known issue (or pick one file you want improved)
 2. Start a Claude session from the project root
-3. Describe the problem specifically — include the file name and what's going wrong
+3. Describe the problem specifically, including the file name and what's going wrong
 4. Let Claude propose a fix, then approve or redirect it
 5. Verify the fix works
 

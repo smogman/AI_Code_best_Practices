@@ -25,7 +25,7 @@ When Claude wants to do something in the second bucket, it shows you what it's a
 
 ## Why This Matters
 
-Claude is working directly in your environment. A misunderstood instruction could overwrite something you didn't intend. The permission prompts are a safety net — read them before approving.
+Claude works directly in your environment. A misunderstood instruction could overwrite something you didn't intend. The permission prompts are a safety net. Read them before approving.
 
 The most important habit: **read the diff before approving edits.** Claude shows you exactly what it's about to change. A 5-second review before every edit saves significant pain.
 
@@ -58,11 +58,11 @@ You can run Claude with `--dangerously-skip-permissions` to skip all prompts. On
 
 Permissions can be set at three levels:
 
-1. **User-level** (`~/.claude/settings.json`) — applies to all your projects
-2. **Project-level** (`.claude/settings.json` in your repo) — applies to one project, can be shared with your team
-3. **Session-level** — set via `/permissions` for the current session only
+1. **User-level** (`~/.claude/settings.json`): applies to all your projects
+2. **Project-level** (`.claude/settings.json` in your repo): applies to one project, can be shared with your team
+3. **Session-level**: set via `/permissions` for the current session only
 
-Project-level permissions in `.claude/settings.json` are the most useful — they let you say "this project always runs `npm test` without asking."
+Project-level permissions in `.claude/settings.json` are the most useful. They let you say "this project always runs `npm test` without asking."
 
 ## What Claude Won't Do Regardless of Permissions
 

@@ -7,7 +7,7 @@ import Exercise from '../../../components/Exercise.astro';
 
 ## What Hooks Are
 
-Hooks are shell commands configured to run automatically at specific points in Claude's workflow. They're the mechanism for "always run the linter after every file edit" — without having to ask Claude to do it.
+Hooks are shell commands configured to run automatically at specific points in Claude's workflow. They automate rules like "always run the linter after every file edit." No asking required.
 
 They live in `.claude/settings.json`.
 
@@ -46,10 +46,10 @@ This runs `npm run lint --fix` every time Claude edits a file.
 
 The `matcher` field filters which tools trigger the hook. Common values:
 
-- `"Edit"` — fires on file edits
-- `"Bash"` — fires on bash commands
-- `"Read"` — fires on file reads
-- `""` — fires on everything (no filter)
+- `"Edit"`: fires on file edits
+- `"Bash"`: fires on bash commands
+- `"Read"`: fires on file reads
+- `""`: fires on everything (no filter)
 
 You can also match on specific patterns using regex.
 

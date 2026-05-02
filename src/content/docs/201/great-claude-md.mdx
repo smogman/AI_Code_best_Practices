@@ -7,7 +7,7 @@ import Exercise from '../../../components/Exercise.astro';
 
 ## Beyond the Basics
 
-You learned the fundamentals in 102. This lesson covers the patterns that make `CLAUDE.md` work reliably at scale — for teams, complex projects, and the edge cases that trip people up.
+You learned the fundamentals in 102. This lesson covers the patterns that make `CLAUDE.md` work reliably at scale: for teams, complex projects, and the edge cases that trip people up.
 
 ## The WHY/WHAT/HOW Framework
 
@@ -39,11 +39,11 @@ a 1% error rate costs ~$50k/month. Prioritize correctness over cleverness.
 
 ## The Size Problem
 
-A common failure mode: `CLAUDE.md` grows over time as you add rules for every edge case. Eventually it's 600 lines and Claude treats it like fine print — technically present but not followed.
+A common failure mode: `CLAUDE.md` grows over time as you add rules for every edge case. Eventually it's 600 lines and Claude treats it like fine print. Technically present but not followed.
 
 **Prune regularly.** After every few sessions, ask: which instructions did Claude actually follow? Which did it ignore? Remove the ones that aren't pulling weight.
 
-The goal is a `CLAUDE.md` where every line is load-bearing.
+Every line in `CLAUDE.md` should be load-bearing.
 
 ## Team CLAUDE.md Patterns
 
@@ -98,7 +98,7 @@ After significant changes to `CLAUDE.md`, run a "cold start" test:
 3. Ask Claude to do a small task that exercises your conventions
 4. Verify it followed them without prompting
 
-If Claude doesn't absorb a rule without being told, either the rule isn't in `CLAUDE.md` clearly enough, or the file is too long and the rule is being lost.
+If Claude doesn't absorb a rule without being told, either the rule isn't in `CLAUDE.md` clearly enough or the file is too long and the rule is getting lost.
 
 ---
 

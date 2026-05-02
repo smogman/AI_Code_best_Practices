@@ -52,7 +52,7 @@ The most useful things in a `CLAUDE.md`:
 
 ## What NOT to Put In It
 
-A `CLAUDE.md` that's too long defeats itself. Claude reads the whole file on every session start — instructions buried in 500 lines of context get ignored.
+A `CLAUDE.md` that's too long defeats itself. Claude reads the whole file on every session start. Instructions buried in 500 lines of context get ignored.
 
 **Avoid:**
 - Exhaustive documentation of your entire codebase
@@ -64,13 +64,13 @@ A `CLAUDE.md` that's too long defeats itself. Claude reads the whole file on eve
 
 ## How Long Should It Be?
 
-Under 300 lines for most projects. The sweet spot is 50–150 lines.
+Under 300 lines for most projects. The sweet spot is 50-150 lines.
 
-If you feel like you need more, that's usually a sign you're trying to solve a problem with configuration that should be solved with project structure or conventions.
+If you feel like you need more, that's a sign you're trying to solve a problem with configuration that should be solved with project structure or conventions instead.
 
 ## Generating a Starting Point
 
-Run `/init` inside a Claude session to have Claude generate a `CLAUDE.md` by scanning your project. This gives you a starting point — review and trim it before using it for real.
+Run `/init` inside a Claude session to have Claude generate a `CLAUDE.md` by scanning your project. This gives you a starting point. Review and trim it before using it for real.
 
 ```
 > /init

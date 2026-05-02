@@ -7,7 +7,7 @@ import Exercise from '../../../components/Exercise.astro';
 
 ## The Core Problem
 
-Context window degradation is subtle. Claude doesn't announce when it's running low — it just starts making mistakes that look like capability failures. Understanding the *types* of context pollution helps you prevent them.
+Context window degradation is subtle. Claude doesn't announce when it's running low. It just starts making mistakes that look like capability failures. Knowing the *types* of context pollution helps you prevent them.
 
 ## Types of Context Pollution
 
@@ -15,7 +15,7 @@ Context window degradation is subtle. Claude doesn't announce when it's running 
 
 Every time you correct Claude, the correction and the wrong answer both stay in context. After 5-6 corrections, a significant chunk of your context is spent on wrong paths.
 
-**Fix:** Use `/clear` before starting a new subtask rather than endlessly correcting. If you've corrected Claude more than 3 times on the same issue, something is wrong — either your instructions or the session needs a reset.
+**Fix:** Use `/clear` before starting a new subtask rather than endlessly correcting. If you've corrected Claude more than 3 times on the same issue, something is wrong. Either your instructions need to change or the session needs a reset.
 
 ### Verbose Command Output
 
@@ -33,13 +33,13 @@ Run the tests and tell me the pass/fail count. Don't show me all the output.
 
 ### Kitchen Sink Sessions
 
-Mixing unrelated tasks in one session is the most common source of degradation. Each task brings in its own files, context, and corrections — they all accumulate.
+Mixing unrelated tasks in one session is the most common source of degradation. Each task brings in its own files, context, and corrections. They all accumulate.
 
 **Fix:** One task per session. When a task is complete, start fresh for the next one.
 
 ### File Accumulation
 
-If Claude reads 15 files to understand the codebase, those 15 files live in context for the rest of the session — even if you only need 2 of them for the actual task.
+If Claude reads 15 files to understand the codebase, those 15 files live in context for the rest of the session, even if you only need 2 of them for the actual task.
 
 **Fix:** Be specific about what Claude should read. "Look at `src/auth/login.ts` and `src/auth/session.ts`" is better than "explore the auth module."
 
@@ -47,7 +47,7 @@ If Claude reads 15 files to understand the codebase, those 15 files live in cont
 
 ### The "Fresh Session Per Feature" Pattern
 
-Many experienced users start a new session for every feature or bug fix. This sounds excessive, but `CLAUDE.md` gives Claude instant project context — the cost of a fresh session is minimal.
+Many experienced users start a new session for every feature or bug fix. This sounds excessive, but `CLAUDE.md` gives Claude instant project context. The cost of a fresh session is minimal.
 
 1. Start session
 2. Claude reads `CLAUDE.md` (instant context)
@@ -64,7 +64,7 @@ For large tasks with multiple phases (research, planning, implementation, testin
 
 ### Strategic `/compact` Use
 
-`/compact` is most valuable in the middle of implementation, when you've explored a problem and are now deep in writing code. The exploration phase is done — compact it away and continue with a lighter context.
+`/compact` is most valuable in the middle of implementation, when you've explored a problem and are now deep in writing code. The exploration phase is done. Compact it away and continue with a lighter context.
 
 Don't use `/compact` as a substitute for `/clear`. If you've changed direction or completed a task, `/clear` is better.
 

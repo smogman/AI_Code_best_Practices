@@ -7,7 +7,7 @@ import Exercise from '../../../components/Exercise.astro';
 
 ## What Plan Mode Is
 
-Plan Mode is a Claude Code feature that separates planning from execution. When you activate it, Claude explores, reads files, and reasons about your task — but makes zero changes. It produces a plan you can review and approve before any code is written.
+Plan Mode is a Claude Code feature that separates planning from execution. Activate it and Claude explores, reads files, and reasons about your task without making any changes. It produces a plan you can review and approve before any code is written.
 
 Activate it with:
 ```
@@ -77,7 +77,7 @@ Treat planning as an exploration phase:
 2. **Align:** You review the plan, course-correct anything wrong
 3. **Execute:** Claude implements the aligned plan
 
-The exploration phase should be liberal — Claude should read widely and understand fully. The execution phase should be disciplined — precise changes, verified by tests.
+The exploration phase should be liberal. Claude reads widely and understands fully. The execution phase should be disciplined: precise changes, verified by tests.
 
 ## Getting Claude to Surface Assumptions
 
@@ -99,7 +99,7 @@ This surfaces hidden decisions before they become code.
 **Steps:**
 1. Pick a task that touches at least 3 files
 2. Activate Plan Mode: `/plan` or start with "Before writing any code, outline your approach"
-3. Read Claude's plan carefully — identify any decisions you disagree with
+3. Read Claude's plan carefully and identify any decisions you disagree with
 4. Redirect at least one thing in the plan before approving
 5. Let Claude execute the approved plan
 
