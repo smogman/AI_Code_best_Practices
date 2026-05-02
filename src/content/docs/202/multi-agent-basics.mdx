@@ -51,9 +51,9 @@ Claude Code handles the spawning. The subagent runs with:
 
 A subagent needs enough context to work independently. When spawning, provide:
 
-1. **What it should do** — specific, bounded task
-2. **What it needs to know** — the relevant context from your main session
-3. **What it should produce** — specific output format so you can use the result
+1. **What it should do**: specific, bounded task
+2. **What it needs to know**: the relevant context from your main session
+3. **What it should produce**: specific output format so you can use the result
 
 Bad: "Fix things in the auth module"  
 Good: "Read `src/auth/login.ts` and `src/auth/session.ts`. Find all places where errors are swallowed (caught but not re-thrown or logged). List each location with file, line number, and the error being swallowed."
@@ -68,7 +68,7 @@ Good: "Read `src/auth/login.ts` and `src/auth/session.ts`. Find all places where
 For N independent features/files, spawn N agents simultaneously.
 
 ### Quality Gate Agent
-After implementation, spawn a fresh agent to review the changes — it hasn't been involved in writing them, so it reviews with fresh eyes.
+After implementation, spawn a fresh agent to review the changes. It hasn't been involved in writing them, so it reviews with fresh eyes.
 
 ## Worktrees for True Isolation
 

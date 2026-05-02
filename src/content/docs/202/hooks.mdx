@@ -137,15 +137,45 @@ If a `PreToolUse` hook exits with a non-zero code, Claude **blocks the action**.
 }
 ```
 
-This prevents Claude from editing files in `src/generated/` — period.
+This prevents Claude from editing files in `src/generated/`. Period.
+
+## Blocking Destructive Operations
+
+LLMs handle negations less reliably than positive statements. "Do not delete anything" is weaker than a hook that literally blocks the command.
+
+A documented incident: a developer asked Claude to remove old compressed files from an archive directory, explicitly writing "do not remove any data." Claude deleted 202GB of archive files. The data was unrecoverable.
+
+The pattern repeats: `rsync --delete` when the intent was `rsync --archive`, `git clean -f` when asked to "clean up" a branch, `rm -rf` when asked to "remove old files."
+
+A `PreToolUse` hook on Bash is the mechanical solution:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{
+          "type": "command",
+          "command": "echo \"$CLAUDE_TOOL_INPUT_COMMAND\" | grep -E '(rm -rf|rm -f|git clean -f|git reset --hard|git checkout -- |rmdir)' && echo 'Blocked: destructive command requires manual approval' && exit 1 || exit 0"
+        }]
+      }
+    ]
+  }
+}
+```
+
+This blocks the specific commands most likely to cause irreversible damage. Claude sees the block, reports what it was trying to do, and waits for you to run it manually.
+
+Add `disableBypassPermissionsMode: "disable"` in your user settings to prevent skip-permissions from removing this safety net.
 
 ## Hook Environment Variables
 
 Hooks get context about what Claude is doing via environment variables:
 
-- `$CLAUDE_TOOL_NAME` — the tool being used (Edit, Bash, etc.)
-- `$CLAUDE_TOOL_INPUT_PATH` — for Edit/Read, the file path
-- `$CLAUDE_TOOL_INPUT_COMMAND` — for Bash, the command being run
+- `$CLAUDE_TOOL_NAME`: the tool being used (Edit, Bash, etc.)
+- `$CLAUDE_TOOL_INPUT_PATH`: for Edit/Read, the file path
+- `$CLAUDE_TOOL_INPUT_COMMAND`: for Bash, the command being run
 
 ---
 

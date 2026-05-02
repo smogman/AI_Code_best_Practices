@@ -1,0 +1,137 @@
+---
+title: The TDD Workflow
+description: Write tests first. Tell Claude to implement until they pass. This is the loop.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## The Workflow in Three Steps
+
+TDD with Claude is straightforward once you have the mental model:
+
+1. **Write tests first** (you or Claude, but reviewed before any implementation)
+2. **Implement to pass** (Claude writes code, runs tests, iterates)
+3. **Refactor with confidence** (tests catch regressions)
+
+The key shift from typical AI-assisted coding: tests define what correct looks like before any code is written. Claude is not guessing at the target. The tests tell it exactly what to hit.
+
+## Step 1: Write Tests First
+
+Specify the behaviors you expect before asking for the implementation:
+
+```
+Write tests for a UserService.getPage() method that:
+- Returns the correct page of users (10 per page, sorted by created_at)
+- Returns an empty array for pages beyond the available data
+- Throws InvalidPageError for negative page numbers
+- Throws InvalidPageError for non-integer page numbers
+
+Do NOT implement the method yet. Only write the test file.
+```
+
+The last line matters. Without it, Claude may write tests and an implementation in the same response. You want to review the tests before any code is written. Tests written after the fact tend to test what the code does rather than what it should do.
+
+Review Claude's tests before moving on. Check that:
+- The edge cases you care about are covered
+- The expected behaviors match your actual intent
+- The tests are specific enough to fail meaningfully
+
+Claude-generated tests can have the same 1.75x logic error rate as Claude-generated code. Treat them as a first draft, not ground truth.
+
+## Step 2: Implement to Pass
+
+Once the tests are reviewed and committed, give Claude the implementation task:
+
+```
+Now implement UserService.getPage() to make all tests pass.
+Run the tests after each significant change and continue until 
+all tests are green.
+```
+
+Claude writes code, runs the tests, reads the failure output, and fixes its implementation. The loop runs without you. You wait for the green result.
+
+If Claude gets stuck after 2-3 iterations, that is a signal to intervene. Either the spec in the tests is unclear, or there is an environmental issue Claude cannot diagnose alone.
+
+## Step 3: Refactor With Confidence
+
+After tests pass, you can ask for cleanup:
+
+```
+All tests pass. Now refactor the implementation for readability. 
+Run the tests again after each change — they must stay green.
+```
+
+Tests make refactoring safe. Claude can restructure without fear of breaking the behavior, because the tests will catch any regression immediately.
+
+## Variations on the Workflow
+
+### Have Claude write the tests from a spec
+
+If you have a written specification, Claude can derive tests from it:
+
+```
+Read the specification in docs/pagination-spec.md. Write a comprehensive 
+test suite covering all the behaviors described in the spec. 
+Do not implement any code yet.
+```
+
+### You write the tests, Claude implements
+
+For critical code, write the tests yourself. The tests represent your intent. Claude's job is implementation only:
+
+```
+The tests in src/__tests__/payment.test.ts define the expected behavior 
+for the payment processing module. Implement src/services/payment.ts 
+to make all tests pass. Do not modify the test file.
+```
+
+When Claude cannot modify the tests, it cannot make tests pass by softening the assertions. It has to actually meet the spec.
+
+### One test at a time
+
+For complex implementations, break the problem into a sequence:
+
+```
+Implement just enough to make the first test pass, then stop. 
+We will add more tests incrementally.
+```
+
+This builds the implementation incrementally with verification at each step. It catches architectural problems early before they compound.
+
+## Adding TDD to CLAUDE.md
+
+Make the workflow automatic by adding it to your project configuration:
+
+```markdown
+## Testing
+Test command: npm test
+Single test: npm test -- --grep "test name"
+
+After implementing any function, run the tests.
+Write tests first for any non-trivial new functionality.
+Do not report a task as complete until tests pass.
+```
+
+With this in CLAUDE.md, you do not have to tell Claude to run tests on every task. It does it automatically.
+
+---
+
+<Exercise title="Implement a function using the full TDD loop" time="30 min">
+
+**Task:** Use the complete TDD workflow on a real function in your codebase.
+
+**Steps:**
+1. Pick a function that does not exist yet (or a refactor target)
+2. Ask Claude to write tests for it: specify at least 4 behaviors including at least 2 edge cases
+3. Review the tests before proceeding. Edit anything that does not match your intent
+4. Ask Claude to implement the function to make the tests pass, running tests after each change
+5. Observe Claude iterate through failures to passing tests
+
+**Success Criteria:**
+- [ ] Tests were written and reviewed before any implementation began
+- [ ] Claude ran the tests automatically during implementation
+- [ ] At least one test failed during development and Claude fixed it without your intervention
+- [ ] All tests pass in the final implementation
+- [ ] You reviewed the implementation after tests passed, not before
+
+</Exercise>

@@ -1,0 +1,138 @@
+---
+title: Providing Context Effectively
+description: Claude accepts more than text. Use file references, images, and piped data to give richer context without filling the chat.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## You Are Not Limited to Typing
+
+Most developers only type prompts into Claude. That is the slowest and most error-prone way to give context. Claude Code accepts file references, images, URLs, and piped data. Using these correctly keeps prompts short while making them more informative.
+
+## @ File References
+
+The `@` syntax attaches a file to your prompt without pasting its contents:
+
+```
+@src/components/UserTable.tsx — add sorting to the Name column, 
+following the same pattern used for the Date column.
+```
+
+Claude reads the file in full. You did not have to paste it. The file read is logged in context, but you got there in two characters instead of hundreds of lines.
+
+**Use @ references when:**
+- You want Claude to read a file without describing what is in it
+- You want to point Claude at a specific file as the source of truth
+- You need Claude to follow a pattern from an existing file
+
+**Multiple file references work:**
+```
+@src/routes/users.ts @src/routes/products.ts — 
+Create src/routes/orders.ts following the same structure.
+```
+
+## Images
+
+Paste screenshots directly into the prompt field. This is particularly useful for:
+
+**UI bugs:**
+```
+[screenshot of broken layout]
+The sidebar is overlapping the main content on mobile. 
+Fix it in src/styles/layout.css.
+```
+
+**Error messages:**
+Paste a screenshot of an error dialog instead of retyping the message. Claude reads it accurately.
+
+**Design references:**
+```
+[screenshot from Figma]
+Build this component in src/components/ProductCard.tsx using 
+our existing Tailwind classes.
+```
+
+## Piped Data
+
+Pipe data directly from the command line:
+
+```bash
+cat error.log | claude "this error appeared in production this morning. 
+what is causing it and how do I fix it?"
+```
+
+```bash
+git diff main | claude "review this diff for any obvious issues before I push"
+```
+
+```bash
+npm test 2>&1 | claude "3 tests are failing. read the output and fix them"
+```
+
+Piping is faster than copying and pasting, and it avoids transcription errors in stack traces or JSON payloads.
+
+## URLs
+
+Include documentation or issue links in your prompt:
+
+```
+Implement the OAuth flow as described in [paste docs URL]. 
+Use our existing HTTP client in src/lib/http.ts.
+```
+
+Claude fetches and reads the URL. You do not have to summarize the docs yourself.
+
+## What Goes in the Prompt vs. What Goes in Files
+
+There is a practical split:
+
+**Put in the prompt:**
+- The specific task and expected outcome
+- Constraints and what not to do
+- Which files to read or modify
+
+**Put in CLAUDE.md (see 102):**
+- Standing rules that apply to every session
+- Project conventions and architectural decisions
+
+**Put in a file (then @ reference it):**
+- Long specifications or designs
+- Large context that would clutter the prompt
+- Reference data Claude needs to read once
+
+The prompt should be clear and short. Context lives in files.
+
+## A Common Mistake
+
+Do not paste entire file contents into the prompt when you can use @. Every line you paste manually uses context. Every @ reference reads the file but keeps the prompt itself short.
+
+```
+# Expensive:
+Here is the content of my auth.ts file: [pastes 300 lines]
+Now fix the session expiry bug.
+
+# Efficient:
+@src/auth.ts — fix the session expiry bug on line 87.
+```
+
+Same context, same result, less noise in the prompt.
+
+---
+
+<Exercise title="Use all three input methods on a real task" time="25 min">
+
+**Task:** Run a task using file references, an image, and piped data to practice each input modality.
+
+**Steps:**
+1. Find a UI bug or layout issue in your project and take a screenshot
+2. Start a Claude session with: `@[relevant file] [screenshot] — fix this layout issue`
+3. Run `npm test 2>&1 | claude "one test is failing, read the output and fix it"` (use an existing failing test or introduce one)
+4. Try a diff review: `git diff | claude "review this before I commit"`
+
+**Success Criteria:**
+- [ ] You used @ to reference at least one file without pasting its contents
+- [ ] You pasted at least one screenshot and Claude understood what it showed
+- [ ] You piped at least one command output to Claude
+- [ ] Each approach got you a useful response faster than typing the context manually would have
+
+</Exercise>

@@ -1,0 +1,141 @@
+---
+title: Constraints That Work
+description: Telling Claude what NOT to do is as important as telling it what to do. Here is how to do it effectively.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## Claude's Default Is to Do More
+
+Claude's bias is toward action. If your prompt does not limit scope, Claude will make changes wherever it thinks they are needed. That means touching files you did not ask about, refactoring code you wanted left alone, and adding things you did not request.
+
+The fix is explicit constraints. The right constraints do not limit what Claude can do. They limit where it can do it.
+
+## Negative Constraints and LLM Limitations
+
+There is something important to know before writing constraints: LLMs handle negations less reliably than positive statements.
+
+**Weaker:**
+```
+Don't delete anything.
+```
+
+**Stronger:**
+```
+Keep all existing files. Add only the new cache layer.
+```
+
+Frame constraints as what should exist after the operation, not what should not happen during it. This is especially critical for destructive operations (see [Hooks](/AI_Code_best_Practices/202/hooks/) for how to enforce these mechanically).
+
+That said, negative constraints still work and are better than nothing. Use both when the stakes are high:
+
+```
+Add the rate limiter to /api/upload. 
+Do not modify the existing auth middleware.
+Keep all existing tests passing.
+The rate limit state must live in Redis — do not introduce a new dependency.
+```
+
+## Scope Constraints
+
+Tell Claude exactly which files it can touch:
+
+```
+Only modify src/routes/products.ts and src/services/product.ts.
+Do not change shared types in src/types/.
+```
+
+This prevents the common pattern where Claude "helpfully" refactors adjacent code while doing what you asked.
+
+## Pattern Constraints
+
+When you want Claude to follow a specific pattern, name it:
+
+```
+Follow the same error handling pattern as src/routes/users.ts.
+Do not use try/catch directly in the route handler.
+```
+
+And when you want Claude to avoid a pattern from your codebase:
+
+```
+Do not copy the pattern from src/legacy/auth.ts.
+Follow src/services/payment.ts instead.
+```
+
+This matters because Claude pattern-matches against your codebase. If your codebase has bad code and good code, you need to steer it toward the good. See [Writing a Great CLAUDE.md](/AI_Code_best_Practices/201/great-claude-md/) for how to make this permanent rather than per-prompt.
+
+## Dependency Constraints
+
+Tell Claude when it cannot add new things:
+
+```
+Do not add new npm dependencies.
+Do not modify package.json.
+Use only what is already in src/lib/.
+```
+
+Claude will sometimes "solve" a problem by adding a library. If you want the implementation in-house, say so explicitly.
+
+## Output Constraints
+
+Specify the form of the output:
+
+```
+Return a single function, not a class.
+Keep the implementation under 50 lines.
+Do not add JSDoc comments — the function name should be self-explanatory.
+```
+
+Claude defaults to "complete" output, which often means more than you need.
+
+## Putting It Together
+
+A well-constrained prompt looks like this:
+
+```
+In src/services/notification.ts, add email notification support 
+for new comments.
+
+Constraints:
+- Only modify src/services/notification.ts
+- Use the existing EmailClient from src/lib/email.ts
+- Do not add new dependencies
+- Follow the same pattern as the existing sendPasswordReset() function
+- Do not modify the existing sendPasswordReset() function
+
+Expected output: a new sendCommentNotification(userId, commentId) 
+function that sends an email with the comment text.
+```
+
+This prompt tells Claude: the file, the goal, the dependencies to use, the pattern to follow, what to leave alone, and what the output should look like. That is everything Claude needs to get it right in one pass.
+
+## When to Add Constraints vs. CLAUDE.md
+
+**In the prompt:** constraints specific to this task (files to touch, patterns to follow for this particular case)
+
+**In CLAUDE.md:** standing constraints that apply to every session (never commit to main, never add new dependencies without asking, always follow the Result pattern for service returns)
+
+Prompts constrain the current task. CLAUDE.md constrains all tasks. Use both.
+
+---
+
+<Exercise title="Write a fully constrained prompt for a real task" time="20 min">
+
+**Task:** Practice writing constraints that actually hold by verifying Claude respects them.
+
+**Steps:**
+1. Pick a task in your codebase (a bug fix or small feature)
+2. Write the prompt with at least four constraints: file scope, pattern to follow, something NOT to do, and a dependency constraint
+3. Run it and inspect the diff: did Claude touch only the files you specified?
+4. Check the output: did it add any new dependencies? Follow the right pattern?
+5. If Claude violated a constraint, add it to CLAUDE.md and test again
+
+**Success Criteria:**
+- [ ] Claude only modified the files you specified in the scope constraint
+- [ ] Claude used the pattern you referenced
+- [ ] Claude did not add any dependencies you excluded
+- [ ] At least one constraint was successfully enforced
+- [ ] You identified whether the constraint belongs in this prompt or in CLAUDE.md
+
+</Exercise>

@@ -7,7 +7,7 @@ import Exercise from '../../../components/Exercise.astro';
 
 ## What MCP Is
 
-MCP (Model Context Protocol) is a standard that lets Claude connect to external tools and data sources. An MCP server exposes capabilities — querying a database, searching GitHub, controlling a browser — that Claude can use mid-session.
+MCP (Model Context Protocol) is a standard that lets Claude connect to external tools and data sources. An MCP server exposes capabilities (querying a database, searching GitHub, controlling a browser) that Claude can use mid-session.
 
 Without MCP: Claude works only with your local files.  
 With MCP: Claude can query your production DB schema, search your issue tracker, or screenshot a live page.
@@ -131,7 +131,7 @@ Find all open GitHub issues labeled "bug" and summarize them.
 
 **Steps:**
 1. Add the appropriate database MCP server to `.mcp.json`
-2. Use an environment variable for the connection string — don't hardcode it
+2. Use an environment variable for the connection string. Don't hardcode it
 3. Add `.mcp.json` to `.gitignore` (or verify it's already there)
 4. Start a session and ask Claude: "Describe the database schema for this project"
 5. Ask Claude to write a query using that schema

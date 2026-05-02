@@ -1,0 +1,127 @@
+---
+title: The Specificity Principle
+description: Vague prompts are expensive. Specific prompts are fast. Here is the difference.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## The 5-10x Efficiency Gap
+
+A vague prompt and a specific prompt for the same task can differ by 5-10x in token cost and output quality. The reason is simple: when you are vague, Claude has to guess.
+
+**Vague:**
+```
+Fix the authentication bug.
+```
+
+Claude has to figure out: which files handle authentication? What is the bug? What is the expected behavior? It reads 10+ files before it even understands the problem.
+
+**Specific:**
+```
+In src/auth/login.ts, the validatePassword() function on line 42 
+returns true for empty strings. Fix it to reject empty passwords 
+and add a test in src/auth/__tests__/login.test.ts.
+```
+
+Claude reads two files, understands the exact problem, and fixes it. Less context consumed, higher accuracy.
+
+This is Anthropic's Consensus Practice #6, rated 5/5 confidence across all documented sources. It is the single highest-leverage change most new Claude Code users can make.
+
+## Why Vague Prompts Fail
+
+When Claude receives a vague prompt, it does not ask for clarification. It makes assumptions and starts working. Those assumptions are often wrong.
+
+Vague prompt triggers:
+- Broad file scanning (reads many files you did not intend)
+- Assumption-making about scope (may touch things you did not want touched)
+- Pattern-matching from the wrong part of the codebase
+- Output that solves a subtly wrong version of your problem
+
+By the time you discover the wrong approach, Claude has consumed significant context and you have to correct course or start over.
+
+## The Three Elements of a Specific Prompt
+
+### 1. Name the files and locations
+
+Do not describe what kind of file you mean. Name it.
+
+```
+In src/components/UserTable.tsx, add sorting to the Name column.
+```
+
+Not:
+```
+Add sorting to the user table component.
+```
+
+### 2. State the problem, not just the goal
+
+Tell Claude what is wrong and what correct looks like.
+
+```
+The /api/products endpoint returns all 10,000 products on every request.
+Add pagination: accept a ?page query param, return 20 items per page,
+include a total count in the response.
+```
+
+Not:
+```
+Add pagination to the products endpoint.
+```
+
+### 3. Point to existing patterns
+
+When your codebase has established patterns, reference them explicitly.
+
+```
+Create a new API route for /api/orders following the same pattern 
+as src/routes/users.ts. Use the OrderRepository from 
+src/repositories/order.ts.
+```
+
+This steers Claude toward your best code instead of whatever it finds nearby. See [201: Writing a Great CLAUDE.md](/AI_Code_best_Practices/201/great-claude-md/) for how to make pattern references a standing part of your configuration.
+
+## Reference Specific Lines When You Know Them
+
+When you have already identified the problem location, say so:
+
+```
+On line 87 of src/services/payment.ts, the charge() function does not 
+handle the case where stripe.charges.create() throws a CardError. 
+Add error handling that returns a PaymentFailedError with the 
+decline code from the Stripe error.
+```
+
+Claude goes directly to that line. No exploration. No false leads.
+
+## What "Specific" Looks Like in Practice
+
+| Task type | Vague (expensive) | Specific (efficient) |
+|---|---|---|
+| Bug fix | "Fix the login bug" | "src/auth/login.ts line 42: validatePassword returns true for empty strings" |
+| Feature | "Add caching" | "Add Redis caching to GET /api/products in src/routes/products.ts, 5-min TTL, using src/lib/redis.ts" |
+| Refactor | "Clean up the auth module" | "In src/auth/session.ts, extract the token refresh logic into a separate refreshToken() function" |
+| New file | "Add a user service" | "Create src/services/user.ts following the pattern in src/services/product.ts" |
+
+The pattern is always the same: file path, function name, what is wrong or what you want, what correct looks like.
+
+---
+
+<Exercise title="Rewrite three vague prompts into specific ones" time="20 min">
+
+**Task:** Practice converting vague prompts into specific ones using a real codebase.
+
+**Steps:**
+1. Open a project you know well
+2. Think of three tasks you might ask Claude to do. Write the vague versions first
+3. For each vague prompt, identify: which file(s), which function(s), what exactly is wrong or wanted
+4. Rewrite each into a specific prompt using the three elements above
+5. Run both versions in separate Claude sessions and compare token usage with `/cost`
+
+**Success Criteria:**
+- [ ] Each specific prompt names at least one file path
+- [ ] Each specific prompt describes the expected outcome, not just the goal
+- [ ] The specific prompts produce first-attempt results closer to what you wanted
+- [ ] You can articulate why each specific prompt is cheaper than the vague version
+
+</Exercise>

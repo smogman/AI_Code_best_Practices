@@ -34,6 +34,24 @@ export default defineConfig({
           ],
         },
         {
+          label: '103 — Writing Effective Prompts',
+          items: [
+            { label: 'Course Overview', slug: '103' },
+            { label: 'The Specificity Principle', slug: '103/the-specificity-principle' },
+            { label: 'Providing Context Effectively', slug: '103/input-modalities' },
+            { label: 'Constraints That Work', slug: '103/designing-constraints' },
+          ],
+        },
+        {
+          label: '115 — TDD with Claude',
+          items: [
+            { label: 'Course Overview', slug: '115' },
+            { label: 'Why TDD with AI', slug: '115/why-tdd' },
+            { label: 'The TDD Workflow', slug: '115/tdd-workflow' },
+            { label: 'Retrofitting Tests to Existing Code', slug: '115/tdd-existing-code' },
+          ],
+        },
+        {
           label: '201 — Working Effectively',
           items: [
             { label: 'Course Overview', slug: '201' },
@@ -41,6 +59,15 @@ export default defineConfig({
             { label: 'Plan Mode', slug: '201/plan-mode' },
             { label: 'Verification Loops', slug: '201/verification-loops' },
             { label: 'Writing a Great CLAUDE.md', slug: '201/great-claude-md' },
+          ],
+        },
+        {
+          label: '210 — Git Discipline',
+          items: [
+            { label: 'Course Overview', slug: '210' },
+            { label: 'Feature Branches and Blast Radius', slug: '210/feature-branches' },
+            { label: 'Atomic Commits and Conventional Commits', slug: '210/commit-discipline' },
+            { label: 'The Pre-Push Review', slug: '210/review-and-pr' },
           ],
         },
         {

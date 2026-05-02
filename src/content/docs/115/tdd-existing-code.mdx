@@ -1,0 +1,106 @@
+---
+title: Retrofitting Tests to Existing Code
+description: Before Claude modifies existing code, write tests for what it does now. This is your safety net.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## The Problem with Modifying Untested Code
+
+When Claude modifies code that has no tests, you have no way to verify the modification preserved the existing behavior. Claude might fix the bug you asked about and silently break something it did not know was connected.
+
+The retrofit pattern addresses this. Before any modification, write tests for what the code does now. Those tests become the safety net for the change.
+
+## The Retrofit Pattern
+
+Three steps:
+
+```
+1. Write tests for the existing behavior (what the code does now)
+2. Verify they all pass against the current code
+3. Make the change — tests catch regressions
+```
+
+Step 2 is critical. If a test fails against the current code, either the test is wrong or the code is already broken. Either way, you need to know before the modification starts.
+
+## Telling Claude to Retrofit
+
+```
+Before changing anything in src/services/billing.ts, write tests 
+for the current behavior of the calculateInvoice() function. 
+Cover the main flows and any edge cases you can identify from reading the code.
+Run the tests and confirm they all pass against the current code.
+Only then make the change I described.
+```
+
+Claude reads the function, infers the expected behavior, writes tests, and confirms they pass. Then it makes your change with the tests watching.
+
+## What Retrofit Tests Catch
+
+Retrofit tests catch:
+- Regressions where your change breaks something unexpected
+- Silent architectural decisions Claude makes during "minor" changes
+- Cases where the fix breaks a connected behavior Claude did not know about
+
+The last one is the most valuable. Claude cannot see all the things a function does. Tests make the connections visible.
+
+## When to Retrofit vs. When to Start Fresh
+
+**Retrofit when:**
+- The existing code is in use and the behavior matters
+- You are adding to something rather than replacing it
+- The function has side effects or outputs you need to preserve
+
+**Start fresh (rewrite) when:**
+- The existing code is clearly broken or you are discarding the approach entirely
+- There is no meaningful existing behavior to preserve
+
+For a clean rewrite, TDD from scratch is cleaner than retrofitting. For modification or extension of working code, retrofit first.
+
+## The Minimal Viable Test Set
+
+Retrofitting does not require 100% coverage. You need enough tests to catch regressions in the code paths you are touching. Ask Claude to cover:
+
+1. The main happy path (normal inputs, expected outputs)
+2. The obvious edge cases (empty, null, boundary values)
+3. Any code paths your change will touch
+
+```
+Write tests for src/auth/session.ts focusing on:
+- Normal session creation and expiry
+- The refresh token flow
+- Any paths that will be affected by adding the new OAuth support
+
+Do not try to cover every line — focus on the behaviors that matter 
+for the change we are about to make.
+```
+
+A focused retrofit test set is better than a comprehensive one you did not review carefully.
+
+## The Broader Principle
+
+Retrofitting tests before modifying existing code is the single change that does the most to prevent Claude from creating new bugs while fixing old ones. It does not require a test suite that covers everything. Just enough to catch the regressions most likely to happen in the area you are changing.
+
+Over time, each modification leaves more tests behind. The codebase becomes progressively safer to work with.
+
+---
+
+<Exercise title="Add tests before modifying a function" time="25 min">
+
+**Task:** Use the retrofit pattern to safely modify an existing function.
+
+**Steps:**
+1. Pick a function in your codebase you have been meaning to change (fix a bug, add a feature, refactor)
+2. Before touching the implementation, ask Claude to write tests for the current behavior
+3. Run the tests and confirm they all pass against the current code
+4. Now make your change
+5. Check: did any tests fail that you did not expect?
+
+**Success Criteria:**
+- [ ] Tests were written and passing before any change was made
+- [ ] The tests accurately describe what the current code does
+- [ ] The change was made with the tests running as a safety net
+- [ ] If a test failed unexpectedly, you investigated before overriding it
+- [ ] The final state has more test coverage than it started with
+
+</Exercise>

@@ -1,0 +1,115 @@
+---
+title: Feature Branches and Blast Radius
+description: Every Claude session starts on a branch. When something goes wrong, you delete the branch instead of untangling main.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## The Blast Radius Problem
+
+Claude works fast. A session that goes wrong (wrong approach, unexpected scope, misunderstood requirements) can produce 15 file changes in 20 minutes. Without a branch, reversing that is painful. With a branch, it is one command.
+
+```bash
+git branch -D feature/bad-approach
+```
+
+That is the entire rollback. Nothing to untangle.
+
+## The Rule
+
+Every Claude session works on a feature branch. No exceptions. Put this in CLAUDE.md:
+
+```markdown
+## Git Protocol
+- Always start from a feature branch: git checkout -b feat/short-description
+- Never commit directly to main
+- Branch naming: feat/, fix/, refactor/, docs/
+```
+
+This is a safety mechanism as much as a convention. The naming prefix tells you and your team which changes came from a Claude session at a glance in the git log.
+
+## What This Prevents
+
+Without feature branches, common failure modes include:
+
+- A bad session mixed into main with 4 other unrelated changes
+- Partial work on main that breaks other things while it sits there
+- No clean rollback path because good and bad changes are interleaved
+
+With feature branches:
+- Each task is its own contained unit
+- If a session goes badly, you drop the branch
+- If a session goes well, you review the diff in full before merging
+- You can work on multiple tasks in parallel without interference
+
+## How to Make Claude Start on Branches
+
+The best enforcement is a CLAUDE.md instruction:
+
+```markdown
+## Git Protocol
+Before starting any task, check the current branch with `git branch`.
+If on main, create a feature branch first:
+  git checkout -b feat/[short-description-of-task]
+Never commit directly to main.
+```
+
+Claude will check before it starts. If it is on main, it creates a branch. If something goes wrong with the task, you are on a branch that can be discarded.
+
+## Naming Conventions
+
+Consistent branch names make the git log readable:
+
+```
+feat/add-user-search
+fix/session-expiry-bug
+refactor/extract-payment-service
+docs/update-api-readme
+```
+
+Some teams add a prefix for Claude-driven branches:
+
+```
+claude/feat-add-user-search
+claude/fix-session-expiry
+```
+
+This marks branches in the git history so future readers know the source. Optional, but useful for teams tracking AI-assisted work.
+
+## Multiple Sessions, Multiple Branches
+
+For parallel work, this pairs naturally with multiple terminal sessions, each on their own branch:
+
+```bash
+# Terminal 1
+git checkout -b feat/user-search
+# Claude works on search
+
+# Terminal 2
+git checkout -b fix/payment-timeout
+# Claude works on the payment bug
+```
+
+The two sessions do not touch each other. Both branches get reviewed before merging.
+
+---
+
+<Exercise title="Build the branching habit into your workflow" time="20 min">
+
+**Task:** Configure your project so Claude always starts on a branch, then test the rollback scenario.
+
+**Steps:**
+1. Add the Git Protocol block to your CLAUDE.md
+2. Start a Claude session and verify it creates a feature branch before making any changes
+3. Do a small task on the branch
+4. Practice the rollback: `git branch -D` the branch and confirm main is unchanged
+5. Redo the task, now with confidence that the rollback option exists
+
+**Success Criteria:**
+- [ ] CLAUDE.md has the Git Protocol section
+- [ ] Claude created a branch before making any changes
+- [ ] You successfully deleted the branch and main was unchanged
+- [ ] You understand that this option exists for any session that goes wrong
+- [ ] You can name the specific failure modes this prevents
+
+</Exercise>

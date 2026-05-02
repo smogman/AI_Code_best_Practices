@@ -1,0 +1,87 @@
+---
+title: Why TDD with AI
+description: Claude generates 1.75x more logic errors than human programmers. Tests are the only reliable way to catch them.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## Claude's Confidence Is Not Evidence
+
+Claude tells you it's done with the same confidence whether the code is correct or subtly broken. It does not say "I'm uncertain about the edge cases." It says "I've implemented the function." There is no linguistic signal that distinguishes certain from guessing.
+
+A 2025 ACM study made this concrete: Claude generates **1.75x more logic errors than human programmers** writing the same functionality. These are not syntax errors. The code compiles. They are logic errors that only surface under specific inputs or conditions.
+
+The code looks right. That is what makes it dangerous.
+
+## What Verification Without Tests Looks Like
+
+Without a test suite, your only check is reading the code. You look at it, it seems correct, Claude says it works. You ship it. Two days later a bug surfaces in production.
+
+This is Addy Osmani's "trust-then-verify gap": the period between when Claude produces code and when you discover it does not work. Without tests, that gap can be hours, days, or never.
+
+## What Verification With Tests Looks Like
+
+With tests as a verification loop:
+
+1. Tests define what correct behavior is
+2. Claude implements the code
+3. Claude runs the tests
+4. Tests fail on the edge cases Claude missed
+5. Claude reads the failure output and fixes the implementation
+6. Tests pass
+
+The entire loop happens before the code reaches you, including catching and fixing errors. Claude cannot "verify" something with reasoning alone. Claude can verify something by running it.
+
+This is why Anthropic calls verification loops the **"single highest-leverage practice"** for Claude Code output quality. Boris Cherny reports a **2-3x quality improvement** when verification loops are in place.
+
+## Why Tests Work Better Than Self-Review
+
+When Claude reviews its own code, it uses the same model that wrote it. The biases that produced the error are also present during review. Claude cannot easily see what it cannot see.
+
+Tests are objective. A test for "returns InvalidPageError for negative page numbers" either passes or fails. There is no room for the model to rationalize a failure into a success.
+
+## The Trust-Then-Verify Problem in Practice
+
+Here is what the failure mode looks like without TDD:
+
+```
+You: Implement a paginated list function
+Claude: Done. Here is the implementation.
+You: Looks good, I'll ship it.
+[3 days later]
+User: The app crashes when you go past the last page.
+```
+
+And with TDD:
+
+```
+You: Write tests for the paginated list function first, 
+     then implement it to make them pass.
+Claude: Writing tests... tests complete.
+Claude: Implementing... running tests... 2 failed.
+Claude: Test "returns empty array for pages beyond data" failed — 
+        fixing now. Tests passing.
+You: [reviews passing tests, ships]
+```
+
+The difference is where the error is caught: before you see it, or after users do.
+
+---
+
+<Exercise title="See the difference with and without a test" time="20 min">
+
+**Task:** Run the same implementation task with and without tests to see the quality gap directly.
+
+**Steps:**
+1. Pick a small function to implement (something with at least 2-3 edge cases)
+2. **Round 1:** Ask Claude to implement it directly. Review the output and ask yourself: did it handle empty input? Null? Boundary values?
+3. **Round 2:** Ask Claude to write tests for the function first (specifying the edge cases), then implement it to make them pass
+4. Compare the two implementations, specifically the edge case handling
+
+**Success Criteria:**
+- [ ] Round 2 produced at least one more edge case than Round 1
+- [ ] Tests in Round 2 caught at least one error during implementation
+- [ ] The test suite gives you confidence in the implementation that the code review alone did not
+- [ ] You can articulate the difference between "it looks right" and "tests say it's right"
+
+</Exercise>

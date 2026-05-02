@@ -89,6 +89,31 @@ For monorepos, use multiple `CLAUDE.md` files:
 
 Claude reads them all, with more specific files taking precedence. Keep the root file to shared-only content.
 
+## Reference Patterns, Not Just Rules
+
+Claude pattern-matches against your codebase when writing new code. It finds the nearest relevant example and approximates it. That means your worst code becomes the template for new code.
+
+A developer who ran a six-month retrospective on AI-assisted PRs found try-catch blocks that just logged errors without handling them, deeply nested conditionals that should have been guard clauses, and code stylistically indistinguishable between senior and junior contributors, because both used the same underlying model drawing from the same codebase patterns. The individual PRs looked fine in isolation. The pattern only became visible months later.
+
+The fix is explicit in your CLAUDE.md:
+
+```markdown
+## Reference Patterns
+Good patterns (follow these):
+- src/services/payment.ts — service layer structure
+- src/routes/users.ts — route handler pattern
+- src/repositories/order.ts — repository pattern
+
+Anti-patterns (avoid these):
+- Do NOT copy patterns from src/legacy/ — these are being replaced
+- Prefer early returns and guard clauses over nested conditionals
+- Error handling must log useful context: the error, the input, and the operation name
+```
+
+This steers Claude toward your best code, excludes your worst, and states anti-patterns as positive alternatives. LLMs follow positive statements more reliably than prohibitions.
+
+Update these references every time you do a significant refactor. A reference to replaced code becomes active misguidance.
+
 ## Testing Your CLAUDE.md
 
 After significant changes to `CLAUDE.md`, run a "cold start" test:
@@ -107,7 +132,7 @@ If Claude doesn't absorb a rule without being told, either the rule isn't in `CL
 **Task:** Systematically evaluate which instructions in your `CLAUDE.md` are actually working.
 
 **Steps:**
-1. Look at your last 5 sessions — did Claude violate any convention from `CLAUDE.md`?
+1. Look at your last 5 sessions. Did Claude violate any convention from `CLAUDE.md`?
 2. For each violation: was the rule unclear? Missing? Or is `CLAUDE.md` too long to absorb?
 3. Rewrite any unclear rules using the WHY/WHAT/HOW structure
 4. Remove any rules that haven't been needed in the last month

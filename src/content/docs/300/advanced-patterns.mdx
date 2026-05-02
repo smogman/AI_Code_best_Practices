@@ -34,7 +34,7 @@ before moving to the next phase.
 
 Claude caches prompt content that stays constant across requests. For large `CLAUDE.md` files or system prompts, this can significantly reduce token costs on long sessions or repeated tasks.
 
-Caching activates automatically for content that stays the same across API calls. In Claude Code usage, your `CLAUDE.md` benefits from this — it's read once and cached for the session.
+Caching activates automatically for content that stays the same across API calls. In Claude Code usage, your `CLAUDE.md` benefits from this. It's read once and cached for the session.
 
 For programmatic use (Agent SDK / API), structure your prompts so stable content (instructions, context) comes first and variable content (the current task) comes last.
 
@@ -67,7 +67,7 @@ Many teams use a naming convention for Claude-driven branches to make them obvio
 
 ## Parallel Session Discipline
 
-Running 10-15 parallel agents is a real pattern — but it requires careful orchestration to not step on itself. Rules for parallel work:
+Running 10-15 parallel agents is a real pattern, but it requires careful orchestration to not step on itself. Rules for parallel work:
 
 1. **No shared files in parallel.** Each agent owns its files exclusively during its run.
 2. **Each agent has a complete, self-contained task.** No dependencies between parallel agents.
@@ -97,6 +97,44 @@ In any multi-agent pipeline, each agent must leave the codebase with passing tes
 
 If an agent can't get tests green, it should report failure rather than hand off a broken state.
 
+## Fan-Out Migrations
+
+For large-scale codebase transformations, running one Claude session over all 150 files fails. Context fills up, output becomes inconsistent, and the session degrades partway through.
+
+Fan-out migrations solve this by looping through files and calling Claude separately for each one with a clean context window:
+
+```bash
+# Find all files that need migration
+grep -rl "oldPattern" src/ > /tmp/migration-files.txt
+
+# Test the prompt on 2-3 files first
+head -3 /tmp/migration-files.txt | while read file; do
+  claude -p "Migrate this file from APIv2 to APIv3:
+  - Replace 'api/v2/' URLs with 'api/v3/'
+  - Update response handling: v3 wraps in { data: ..., meta: ... }
+  - Do NOT make any changes unrelated to the API migration
+  File: $file" \
+  --allowedTools Edit,Read
+done
+```
+
+After verifying the test output, run at scale:
+
+```bash
+while read file; do
+  claude -p "Migrate $file from APIv2 to APIv3. [same prompt]" \
+    --allowedTools Edit,Read
+done < /tmp/migration-files.txt
+```
+
+Key details:
+- `--allowedTools Edit,Read` prevents Claude from running commands or creating files
+- Test on 2-3 representative files before running the full set
+- Each file gets a clean context window, no degradation across the batch
+- Failed files can be logged and retried or handled manually
+
+This pattern applies to any per-file transformation: adding type annotations, migrating test frameworks, updating import paths, adding OpenAPI annotations.
+
 ## Reading Claude's Reasoning
 
 For complex decisions, ask Claude to reason explicitly before acting:
@@ -118,7 +156,7 @@ This surfaces hidden assumptions and wrong-direction choices before they become 
 1. Start on a fresh branch: `git checkout -b claude/exercise`
 2. Give Claude a 3-phase task (e.g., refactor module → add tests → update docs)
 3. Instruct Claude to commit after each phase with a descriptive message
-4. After the session, review: `git log --oneline` — you should see 3 clear commits
+4. After the session, run `git log --oneline` and confirm 3 clear commits
 5. Practice undoing the last phase: `git reset --hard HEAD~1`
 
 **Success Criteria:**

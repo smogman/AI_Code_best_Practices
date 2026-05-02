@@ -1,0 +1,110 @@
+---
+title: The Pre-Push Review and Structured PRs
+description: Before Claude's work reaches shared history, you review it. This is the human checkpoint.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## The Pre-Push Diff Review
+
+Before pushing any branch, run `git diff main...HEAD` and review the full diff. This is the human checkpoint. Claude writes fast. This is where you verify that what was written matches what you intended.
+
+```bash
+git diff main...HEAD           # Review all changes
+git log --oneline main..HEAD   # Check the commit sequence
+# Only then:
+git push origin branch-name
+```
+
+The diff review catches things that passed a quick session read:
+- Scope creep: Claude added "small improvements" outside the task boundary
+- Unexpected file changes: package.json, config files, shared types
+- Silent refactoring: Claude restructured code it should have left alone
+- Wrong pattern: Claude used an old pattern from a different module
+
+These changes are often not wrong. They just were not what you asked for. The diff review is your last chance to decide whether they stay.
+
+## What to Look For
+
+**Files you did not expect:** If `git diff --stat` shows a file you did not mention in your prompt, read it. Is the change intentional? Did Claude need to modify it to make the task work, or did it "help" beyond scope?
+
+**Changes to shared infrastructure:** package.json, tsconfig.json, CI configuration, database migrations. These affect everyone. Any change here deserves extra scrutiny.
+
+**Deleted code:** Deletions are easy to miss in a diff scan. Grep the diff specifically for deleted lines in important areas.
+
+**Commit message quality:** Does the log tell a coherent story? Would a team member reading this six months from now understand what happened and why?
+
+## The Pre-Push Habit in CLAUDE.md
+
+```markdown
+## Review Before Pushing
+Before pushing any branch, run:
+  git diff main...HEAD
+  git log --oneline main..HEAD
+Wait for approval before pushing to remote.
+```
+
+With this instruction, Claude will not push until you review. You see the full diff before anything reaches the remote.
+
+## Structured PR Descriptions
+
+When the diff review passes, the PR description is the handoff document. A good description lets a reviewer understand the change without asking questions.
+
+Ask Claude to fill this out. Claude has full context on what it changed and writes accurate descriptions fast:
+
+```
+The diff looks good. Create a PR with this description format:
+
+## What
+One paragraph: what changed and why.
+
+## How  
+Key implementation decisions, especially non-obvious ones.
+
+## Test Plan
+- [ ] What was tested
+- [ ] How to manually verify if needed
+
+## Scope
+Files changed and why each was touched.
+```
+
+Claude fills in each section accurately from its session context. The PR description becomes part of the permanent record: why was this change made, what tradeoffs were considered, what does a reviewer need to know.
+
+## Why Structured PRs Matter More with AI
+
+When a human writes code, reviewers can ask the author "why did you do it this way?" and get a direct answer. When Claude writes code, the author is unavailable for follow-up. The PR description is the only record of intent and rationale.
+
+Without a structured description, reviewers face a diff with no context. They either approve on faith or ask questions that slow things down. Structured PRs eliminate both paths.
+
+## The Full Git Discipline Stack
+
+Together, the three habits form a complete loop:
+
+1. **Feature branch**: every session contained, every mistake reversible
+2. **Atomic commits**: every change readable, every regression bisectable
+3. **Pre-push review**: every diff reviewed by a human before it reaches shared history
+
+None of these is complicated. Together they make the difference between a git log that tells a story and one that is noise.
+
+---
+
+<Exercise title="Complete a session with the full git discipline stack" time="30 min">
+
+**Task:** Run a real task using all three habits from start to finish.
+
+**Steps:**
+1. Start with `git checkout -b feat/your-task-name`
+2. Run the task, instructing Claude to commit each logical phase with Conventional Commits format
+3. After the session, run `git diff main...HEAD` and read the full diff before pushing
+4. Identify at least one thing in the diff you did not explicitly ask for (scope creep, helper modification, etc.) and decide if it belongs
+5. Have Claude write a structured PR description for the changes
+
+**Success Criteria:**
+- [ ] Session started on a feature branch
+- [ ] `git log --oneline` shows 2+ atomic commits with Conventional Commits format
+- [ ] You reviewed the full diff before pushing
+- [ ] You can name at least one change in the diff you did not explicitly request
+- [ ] The PR description covers What, How, Test Plan, and Scope without you having to fill it in
+
+</Exercise>

@@ -1,0 +1,99 @@
+---
+title: Atomic Commits and Conventional Commits
+description: One logical change per commit. A commit format that tells you why. These two habits make the git log useful.
+---
+
+import Exercise from '../../../components/Exercise.astro';
+
+## The Problem Claude Creates Without Discipline
+
+Without commit instructions, Claude accumulates all changes and commits at the end. You get one commit message like "implement feature" covering 14 file changes across 3 unrelated concerns. The git log is noise. Bisecting a bug means unwinding a tangled diff.
+
+Practitioners who have worked with Claude Code for months converge on the same lesson: vague commits like "various fixes" hide problems until they surface as bugs. Atomic commits with meaningful messages make conflicts visible immediately.
+
+## Atomic Commits
+
+One logical change per commit. Not one file per commit: a single logical change often touches multiple files. Not one session per commit: a productive session should produce several commits.
+
+Tell Claude explicitly:
+
+```
+Commit each logical change as you complete it.
+Do not accumulate all changes and commit at the end.
+After each complete unit of work:
+  git add [the specific files changed]
+  git commit -m "type: description"
+```
+
+"Each logical change" means: a type system update is one commit. Adding the tests for it is another. The implementation is a third. Each can be understood, reverted, or bisected independently.
+
+## Conventional Commits
+
+Specify the commit format in CLAUDE.md. Claude follows formats it is told to use. It ignores formats it is not told about.
+
+```markdown
+## Commit Format
+Use Conventional Commits:
+- feat: a new feature
+- fix: a bug fix
+- docs: documentation only
+- refactor: code change that is not a fix or feature
+- test: adding or correcting tests
+- chore: build, CI, config changes
+
+Format: type(optional-scope): description
+Example: fix(auth): handle expired token in refresh flow
+
+Each commit represents one logical change. Do not bundle unrelated changes.
+```
+
+With this in CLAUDE.md, every commit Claude makes is readable in the git log, scannable for type, and eligible for changelog automation.
+
+## Why This Matters for AI-Assisted Work
+
+When Claude works fast, the gap between "code was written" and "code was reviewed" is small. Atomic commits with meaningful messages are what make that gap survivable.
+
+Two concrete benefits:
+
+**Bisect works.** If a bug appears after a Claude session, `git bisect` can find the commit that introduced it. This only works if commits are atomic. One massive "implement feature" commit defeats bisect entirely.
+
+**Revert is surgical.** If Claude's refactoring of the session helper was correct but the test changes were not, you can revert one commit and keep the other. With a combined commit, you revert or keep everything.
+
+## Making Claude Commit Incrementally
+
+The key instruction is: commit after each logical step, not at the end.
+
+```
+Implement the new caching layer in phases:
+1. First, add the CacheService interface in src/types/cache.ts — commit
+2. Then implement the in-memory implementation — commit
+3. Then add the Redis implementation — commit
+4. Then wire it up to the product routes — commit
+5. Then add the tests — commit
+
+Use Conventional Commits format for each.
+```
+
+Asking Claude to commit at each phase also acts as a checkpoint. If phase 3 goes wrong, phases 1 and 2 are already safely committed. You pick up from there.
+
+---
+
+<Exercise title="Produce three atomic commits in one session" time="25 min">
+
+**Task:** Run a multi-step task with Claude and get atomic commits at each stage.
+
+**Steps:**
+1. Add the Commit Format block to your CLAUDE.md
+2. Pick a task with at least three logical phases (e.g., add interface, implement, add tests)
+3. Ask Claude to commit after each phase using Conventional Commits format
+4. After the session, run `git log --oneline` and verify: 3+ commits, each with a meaningful type and description
+5. Test your ability to understand each commit in isolation
+
+**Success Criteria:**
+- [ ] `git log --oneline` shows at least 3 separate commits from the session
+- [ ] Each commit message uses the Conventional Commits format (feat:, fix:, test:, etc.)
+- [ ] Each commit represents a single logical change
+- [ ] You can explain what each commit does from the message alone
+- [ ] You can identify which commit you would revert if only one phase went wrong
+
+</Exercise>

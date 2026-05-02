@@ -25,7 +25,7 @@ Vague prompts get vague results.
 |---|---|
 | "fix the bug" | "The login function in `src/auth.ts` throws a null reference error when email is empty. Fix it." |
 | "add a feature" | "Add a `deleteUser(id)` function to `src/users.ts` that removes the user and their associated posts from the database." |
-| "clean this up" | "Refactor `processOrder()` in `src/orders.ts` — it's doing too many things. Split it into smaller functions." |
+| "clean this up" | "Refactor `processOrder()` in `src/orders.ts`. It's doing too many things. Split it into smaller functions." |
 
 ### Give Claude the Full Picture
 
@@ -47,7 +47,7 @@ The session is stateful. Do things in sequence rather than stacking them.
 ## Reading Claude's Output
 
 Claude will typically:
-1. **Explain what it's about to do** — read this before approving anything
+1. **Explain what it's about to do**: read this before approving anything
 2. **Show you the changes** in a diff-like view
 3. **Tell you what it did** after completing
 
@@ -57,7 +57,7 @@ If something looks wrong at step 1, say so before it proceeds. Redirecting is ea
 
 You don't have to wait for Claude to finish. If it's going in the wrong direction, interrupt with a correction:
 
-- *"Wait — don't add error logging, just fix the null check."*
+- *"Wait, don't add error logging, just fix the null check."*
 - *"That's not right. The issue is in the `processPayment` function, not `validateCart`."*
 - *"Good, but use `const` not `let` for that variable."*
 
@@ -84,6 +84,6 @@ Type `/exit` or press `Ctrl+C`. There's nothing to save. Changes Claude made to 
 - [ ] You described the problem without Claude asking clarifying questions
 - [ ] Claude found the right location in the code on the first try
 - [ ] The fix works (run the code or tests to confirm)
-- [ ] You didn't need to copy-paste anything — Claude edited the file directly
+- [ ] You didn't need to copy-paste anything. Claude edited the file directly
 
 </Exercise>

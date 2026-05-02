@@ -42,20 +42,36 @@ Execute the plan.
 
 ## The `CLAUDE.md` Size Tax
 
-Every session starts by reading your `CLAUDE.md`. A 500-line file costs 5× more per session than a 100-line file — and as covered in 201, it also degrades instruction-following.
+Every session starts by reading your `CLAUDE.md`. A 500-line file costs 5× more per session than a 100-line file, and as covered in 201, it also degrades instruction-following.
 
 Keeping `CLAUDE.md` lean is both a quality practice and a cost practice.
 
-## Prompt Caching Value
+## Prompt Caching: The Numbers
 
-For repetitive workflows (running the same type of task many times), prompt caching can cut costs significantly. Cached tokens cost less than uncached tokens.
+Prompt caching stores the computational work for unchanged content at the beginning of each API call. Claude Code loads the same system prompt, CLAUDE.md files, and conversation history on every turn. All of that gets cached.
+
+Community benchmarks from practitioners:
+
+- Well-optimized active sessions achieve **~90% cache hit rates**
+- A 20-turn session with 100K stable context tokens saves **84% in input costs** vs. no caching
+- Batching related work in one session is **3.8x cheaper** than the same work spread across five sessions
+- Cached input tokens cost **10% of uncached** (a 10x difference)
+
+Cache TTL varies by plan: **Max subscribers get 1-hour TTL**, Pro and API users get **5-minute TTL**. The timer resets on each cache hit during active work.
 
 Structure your sessions so stable content appears first:
-1. `CLAUDE.md` (stable — cached)
-2. Project context (stable for a session — cached after first use)
-3. The specific task (variable — not cached)
+1. `CLAUDE.md` (stable, cached)
+2. Project context (stable for a session, cached after first use)
+3. The specific task (variable, not cached)
 
-Claude Code does this automatically. If you're building automated pipelines with the API, be deliberate about it.
+**Three actions that destroy your cache:**
+- Switching models mid-session (caches are model-specific: Opus and Sonnet cannot share)
+- Using `/rewind` (breaks the cache on all content after the rewind point)
+- Installing MCP servers mid-session (rebuilds tool definitions, invalidates all downstream caches)
+
+Decide your model before the session starts. If you need to switch, start a fresh session instead.
+
+For automated pipelines with the API, place stable content (instructions, context) before variable content (the current task) in every call.
 
 ## The Session Length vs. Quality Trade-off
 
@@ -89,7 +105,7 @@ Use `/cost` regularly to build intuition:
 > /cost
 ```
 
-Run it before and after different types of tasks. You'll quickly develop a sense for what's expensive in your workflow — and it's often not what you'd expect.
+Run it before and after different types of tasks. You'll quickly develop a sense for what's expensive in your workflow, and it's often not what you'd expect.
 
 ---
 
